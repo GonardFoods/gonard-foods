@@ -56,13 +56,23 @@ export default function Contact() {
             <div className="flex flex-col gap-6">
               {[
                 {
-                  label: "Email",
-                  value: "info@gonardfoods.com",
-                  href: "mailto:info@gonardfoods.com",
+                  label: "Phone",
+                  value: "(403) 277-0991",
+                  href: "tel:4032770991",
                 },
                 {
-                  label: "Location",
-                  value: "Calgary, Alberta, Canada",
+                  label: "Email",
+                  value: "gfoods@telus.net",
+                  href: "mailto:gfoods@telus.net",
+                },
+                {
+                  label: "Address",
+                  value: "3915 Edmonton Trl #7, Calgary, AB T2E 6T1",
+                  href: null,
+                },
+                {
+                  label: "Hours",
+                  value: "Mon–Fri, 8 AM – 4 PM",
                   href: null,
                 },
                 {

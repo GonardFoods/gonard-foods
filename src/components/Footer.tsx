@@ -11,7 +11,7 @@ export default function Footer() {
           <div className="md:col-span-1">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 relative shrink-0">
-                <Image src="/logo.svg" alt="Gonard Foods logo" fill className="object-contain" />
+                <Image src="/logo.svg" alt="Gonard Foods logo" fill className="object-contain" style={{ filter: "brightness(0) invert(1)" }} />
               </div>
               <span
                 className="text-white font-bold tracking-[0.18em] uppercase text-sm"
@@ -80,12 +80,18 @@ export default function Footer() {
               Contact
             </h3>
             <ul className="space-y-3 text-sm">
-              <li>Calgary, Alberta</li>
+              <li>3915 Edmonton Trl #7<br />Calgary, AB T2E 6T1</li>
               <li>
-                <a href="mailto:info@gonardfoods.com" className="hover:text-white transition-colors duration-200">
-                  info@gonardfoods.com
+                <a href="tel:4032770991" className="hover:text-white transition-colors duration-200">
+                  (403) 277-0991
                 </a>
               </li>
+              <li>
+                <a href="mailto:gfoods@telus.net" className="hover:text-white transition-colors duration-200">
+                  gfoods@telus.net
+                </a>
+              </li>
+              <li>Mon–Fri &nbsp;8 AM – 4 PM</li>
             </ul>
           </div>
         </div>

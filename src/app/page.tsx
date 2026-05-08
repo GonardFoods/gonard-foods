@@ -70,7 +70,7 @@ export default function Home() {
       >
         <div className="flex flex-col items-center gap-8 max-w-3xl">
           <div className="w-36 h-36 relative">
-            <Image src="/logo.svg" alt="Gonard Foods" fill className="object-contain" priority />
+            <Image src="/logo.svg" alt="Gonard Foods" fill className="object-contain" style={{ filter: "brightness(0) invert(1)" }} priority />
           </div>
 
           <div className="flex flex-col items-center gap-4">

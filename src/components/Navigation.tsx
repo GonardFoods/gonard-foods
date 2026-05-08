@@ -25,6 +25,7 @@ export default function Navigation() {
               alt="Gonard Foods logo"
               fill
               className="object-contain"
+              style={{ filter: "brightness(0) invert(1)" }}
               priority
             />
           </div>
