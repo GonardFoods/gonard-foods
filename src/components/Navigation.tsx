@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import { useCart } from "@/contexts/CartContext";
 
 const navLinks = [
   { label: "Products", href: "/products" },
@@ -12,6 +13,7 @@ const navLinks = [
 
 export default function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { itemCount } = useCart();
 
   return (
     <header className="sticky top-0 z-50" style={{ backgroundColor: "#03033f", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
@@ -60,6 +62,24 @@ export default function Navigation() {
           >
             Sign In
           </Link>
+
+          {/* Cart icon */}
+          <Link href="/cart" className="relative text-white/75 hover:text-white transition-colors duration-200" aria-label="Cart">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <path d="M16 10a4 4 0 01-8 0" />
+            </svg>
+            {itemCount > 0 && (
+              <span
+                className="absolute -top-1.5 -right-1.5 flex items-center justify-center w-4 h-4 text-white rounded-full"
+                style={{ backgroundColor: "#f59e0b", fontSize: "9px", fontFamily: "var(--font-brand), sans-serif", fontWeight: 700 }}
+              >
+                {itemCount > 99 ? "99+" : itemCount}
+              </span>
+            )}
+          </Link>
+
           <Link
             href="/order"
             className="bg-white text-sm font-bold tracking-widest uppercase px-6 py-2.5 hover:bg-white/90 transition-colors duration-200"
@@ -69,22 +89,40 @@ export default function Navigation() {
           </Link>
         </div>
 
-        {/* Mobile hamburger */}
-        <button
-          className="md:hidden text-white p-1"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Toggle menu"
-        >
-          {mobileOpen ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M18 6L6 18M6 6l12 12" />
+        {/* Mobile right side */}
+        <div className="md:hidden flex items-center gap-4">
+          <Link href="/cart" className="relative text-white/75 hover:text-white transition-colors duration-200" aria-label="Cart">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <path d="M16 10a4 4 0 01-8 0" />
             </svg>
-          ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M3 12h18M3 6h18M3 18h18" />
-            </svg>
-          )}
-        </button>
+            {itemCount > 0 && (
+              <span
+                className="absolute -top-1.5 -right-1.5 flex items-center justify-center w-4 h-4 text-white rounded-full"
+                style={{ backgroundColor: "#f59e0b", fontSize: "9px", fontFamily: "var(--font-brand), sans-serif", fontWeight: 700 }}
+              >
+                {itemCount > 99 ? "99+" : itemCount}
+              </span>
+            )}
+          </Link>
+
+          <button
+            className="text-white p-1"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M3 12h18M3 6h18M3 18h18" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}

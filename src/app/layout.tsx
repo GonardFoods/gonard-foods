@@ -3,6 +3,7 @@ import { Josefin_Sans } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
+import { CartProvider } from "@/contexts/CartContext";
 
 const brandFont = Josefin_Sans({
   subsets: ["latin"],
@@ -24,9 +25,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${brandFont.variable} h-full`}>
       <body className="min-h-full flex flex-col" style={{ fontFamily: "var(--font-brand), sans-serif" }}>
-        <Navigation />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <CartProvider>
+          <Navigation />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </CartProvider>
       </body>
     </html>
   );

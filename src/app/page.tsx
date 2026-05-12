@@ -34,8 +34,8 @@ const features = [
     ),
   },
   {
-    title: "200+ Products",
-    description: "A wide selection of beef, pork, poultry, lamb, and specialty cuts to meet any need.",
+    title: "80+ Products",
+    description: "A wide selection of chicken, beef, lamb, goat, turkey, duck, and seafood to meet any need.",
     icon: (
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -48,12 +48,12 @@ const features = [
 ];
 
 const productCategories = [
-  { name: "Beef", description: "Steaks, roasts, ground beef, and specialty cuts" },
-  { name: "Pork", description: "Chops, tenderloin, ribs, and more" },
-  { name: "Poultry", description: "Chicken, turkey, and game birds" },
-  { name: "Lamb", description: "Rack, leg, chops, and ground lamb" },
-  { name: "Veal", description: "Cutlets, roasts, and specialty cuts" },
-  { name: "Specialty", description: "Exotic and specialty cuts on request" },
+  { name: "Chicken", description: "Whole birds, wings, breasts, legs, thighs, offal, and more — fresh and frozen", href: "/products?cat=chicken" },
+  { name: "Beef", description: "Ground beef, stew, chuck roll, ribs, and stir-fry cuts", href: "/products?cat=beef" },
+  { name: "Lamb", description: "Legs, shanks, shoulders, stew, ground lamb, and whole carcass", href: "/products?cat=lamb" },
+  { name: "Goat", description: "Whole carcass, 6-way pieces, and stew cuts", href: "/products?cat=goat" },
+  { name: "Turkey & Duck", description: "Whole halal turkey, turkey wings, and farm-fed duck", href: "/products?cat=turkey-duck" },
+  { name: "Seafood", description: "Basa, salmon, haddock, cod, pompano, prawns, and kingfish", href: "/products?cat=seafood" },
 ];
 
 export default function Home() {
@@ -162,14 +162,15 @@ export default function Home() {
             </h2>
             <div className="w-12 h-0.5 mx-auto mt-5" style={{ backgroundColor: "#03033f" }} />
             <p className="mt-6 text-sm leading-relaxed max-w-xl mx-auto" style={{ color: "#03033f99" }}>
-              Over 200 products across all major protein categories. Browse our full catalog to find exactly what you need.
+              Over 80 products across chicken, beef, lamb, goat, turkey, duck, and seafood. Browse our full catalog to find exactly what you need.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {productCategories.map((cat) => (
-              <div
+              <Link
                 key={cat.name}
+                href={cat.href}
                 className="bg-white p-8 flex flex-col gap-3 group hover:shadow-lg transition-shadow duration-300"
               >
                 <div
@@ -181,7 +182,7 @@ export default function Home() {
                   </span>
                 </div>
                 <h3
-                  className="font-bold tracking-widest uppercase text-sm"
+                  className="font-bold tracking-widest uppercase text-sm group-hover:opacity-70 transition-opacity"
                   style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
                 >
                   {cat.name}
@@ -189,7 +190,7 @@ export default function Home() {
                 <p className="text-sm leading-relaxed" style={{ color: "#03033f99" }}>
                   {cat.description}
                 </p>
-              </div>
+              </Link>
             ))}
           </div>
 

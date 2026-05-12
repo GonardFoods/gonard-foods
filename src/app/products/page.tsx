@@ -169,8 +169,9 @@ export default function Products() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {filtered.map((product) => (
-                <div
+                <Link
                   key={product.id}
+                  href={`/products/${product.id}`}
                   className="bg-white flex flex-col hover:shadow-lg transition-shadow duration-300"
                 >
                   {/* Color band by category */}
@@ -247,16 +248,15 @@ export default function Products() {
                       >
                         {product.unit}
                       </span>
-                      <Link
-                        href="/contact"
-                        className="text-xs font-bold tracking-widest uppercase hover:opacity-70 transition-opacity"
+                      <span
+                        className="text-xs font-bold tracking-widest uppercase"
                         style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
                       >
-                        Inquire →
-                      </Link>
+                        View →
+                      </span>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
