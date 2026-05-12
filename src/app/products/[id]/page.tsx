@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { products, CATEGORY_LABELS, type Category } from "@/data/products";
-import AddToCartButton from "./AddToCartButton";
+import OrderCalculator from "./OrderCalculator";
 
 export function generateStaticParams() {
   return products.map((p) => ({ id: p.id }));
@@ -47,10 +47,6 @@ function buildExpandedDescription(product: (typeof products)[number]): string {
   if (product.supplier) {
     parts.push(`Sourced from ${product.supplier}.`);
   }
-
-  parts.push(
-    "Available for wholesale and retail orders. Contact us for custom quantities, volume pricing, or delivery scheduling."
-  );
 
   return parts.join(" ");
 }
@@ -185,7 +181,6 @@ export default async function ProductPage({
             {/* Details table */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               {[
-                { label: "Item No.", value: product.itemNo },
                 { label: "Unit", value: product.unit },
                 { label: "Subcategory", value: product.subcategory },
                 ...(product.supplier ? [{ label: "Supplier", value: product.supplier }] : []),
@@ -211,8 +206,8 @@ export default async function ProductPage({
               Contact us to confirm current stock and arrange delivery or pickup.
             </div>
 
-            {/* Add to cart */}
-            <AddToCartButton product={product} />
+            {/* Order calculator */}
+            <OrderCalculator product={product} />
           </div>
         </div>
       </section>

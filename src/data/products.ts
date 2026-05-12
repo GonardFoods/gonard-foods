@@ -18,6 +18,12 @@ export interface Product {
   saleEndDate: string | null;
 }
 
+export function getWeightUnit(unit: string): "KG" | "LB" {
+  const u = unit.toUpperCase();
+  if (u === "LBS" || u === "LB" || u.endsWith(" LBS") || u.endsWith(" LB")) return "LB";
+  return "KG";
+}
+
 export const CATEGORY_LABELS: Record<Category, string> = {
   chicken: "Chicken",
   beef: "Beef",
