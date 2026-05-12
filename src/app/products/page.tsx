@@ -205,7 +205,12 @@ export default function Products() {
                           Halal
                         </span>
                       )}
-                      {product.freshFrozen && (
+                      {product.freshFrozen === "both" ? (
+                        <>
+                          <span className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase" style={{ backgroundColor: "#0284c714", color: "#0284c7", fontFamily: "var(--font-brand), sans-serif" }}>Fresh</span>
+                          <span className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase" style={{ backgroundColor: "#7c3aed14", color: "#7c3aed", fontFamily: "var(--font-brand), sans-serif" }}>Frozen</span>
+                        </>
+                      ) : product.freshFrozen ? (
                         <span
                           className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase"
                           style={{
@@ -216,7 +221,7 @@ export default function Products() {
                         >
                           {product.freshFrozen}
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Name */}

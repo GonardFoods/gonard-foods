@@ -40,7 +40,9 @@ function buildExpandedDescription(product: (typeof products)[number]): string {
   if (product.freshFrozen === "fresh") {
     parts.push("Delivered fresh — never frozen.");
   } else if (product.freshFrozen === "frozen") {
-    parts.push("Individually quick-frozen to preserve quality and extend shelf life.");
+    parts.push("Frozen to preserve quality and extend shelf life.");
+  } else if (product.freshFrozen === "both") {
+    parts.push("Available in both fresh and frozen options under the same item number.");
   }
   if (product.supplier) {
     parts.push(`Sourced from ${product.supplier}.`);
@@ -137,7 +139,12 @@ export default async function ProductPage({
                   Halal
                 </span>
               )}
-              {product.freshFrozen && (
+              {product.freshFrozen === "both" ? (
+                <>
+                  <span className="px-2.5 py-1 text-xs font-bold tracking-widest uppercase" style={{ backgroundColor: "#0284c714", color: "#0284c7", fontFamily: "var(--font-brand), sans-serif" }}>Fresh</span>
+                  <span className="px-2.5 py-1 text-xs font-bold tracking-widest uppercase" style={{ backgroundColor: "#7c3aed14", color: "#7c3aed", fontFamily: "var(--font-brand), sans-serif" }}>Frozen</span>
+                </>
+              ) : product.freshFrozen ? (
                 <span
                   className="px-2.5 py-1 text-xs font-bold tracking-widest uppercase"
                   style={{
@@ -148,7 +155,7 @@ export default async function ProductPage({
                 >
                   {product.freshFrozen}
                 </span>
-              )}
+              ) : null}
             </div>
 
             {/* Name */}
