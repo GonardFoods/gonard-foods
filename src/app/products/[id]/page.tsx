@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getAllProducts } from "@/lib/products-store";
-import { CATEGORY_LABELS, type Category } from "@/data/products";
+import { CATEGORY_LABELS, getProductPhotos, type Category } from "@/data/products";
 import OrderCalculator from "./OrderCalculator";
+import PhotoSlideshow from "./PhotoSlideshow";
 
 export const dynamicParams = true;
 
@@ -47,6 +48,7 @@ export default async function ProductPage({
   if (!product) notFound();
 
   const accentColor = CATEGORY_COLORS[product.category];
+  const productPhotos = getProductPhotos(product);
 
   const parts: string[] = [product.description];
   if (product.halal) parts.push("This product is halal certified.");
@@ -84,37 +86,8 @@ export default async function ProductPage({
       <section className="py-12 px-6 bg-white">
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20">
 
-          {/* Image area */}
-          <div
-            className="aspect-square flex flex-col items-center justify-center gap-4 relative overflow-hidden"
-            style={{ backgroundColor: accentColor + "10", border: `1px solid ${accentColor}22` }}
-          >
-            <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: accentColor }} />
-            {product.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.photoUrl}
-                alt={product.name}
-                className="w-full h-full object-cover absolute inset-0"
-              />
-            ) : (
-              <>
-                <div className="flex flex-col items-center gap-3 opacity-40">
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                </div>
-                <p
-                  className="text-xs tracking-widest uppercase"
-                  style={{ color: accentColor + "88", fontFamily: "var(--font-brand), sans-serif" }}
-                >
-                  Photo Coming Soon
-                </p>
-              </>
-            )}
-          </div>
+          {/* Image slideshow */}
+          <PhotoSlideshow photos={productPhotos} alt={product.name} accentColor={accentColor} />
 
           {/* Info */}
           <div className="flex flex-col gap-6">

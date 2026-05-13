@@ -16,7 +16,14 @@ export interface Product {
   marketPrice: number | null;
   salePrice: number | null;
   saleEndDate: string | null;
-  photoUrl?: string | null;
+  photos?: string[];
+  photoUrl?: string | null; // legacy — superseded by photos[]
+}
+
+export function getProductPhotos(product: Product): string[] {
+  if (product.photos && product.photos.length > 0) return product.photos;
+  if (product.photoUrl) return [product.photoUrl];
+  return [];
 }
 
 export function getWeightUnit(unit: string): "KG" | "LB" {

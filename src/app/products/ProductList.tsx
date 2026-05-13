@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import { CATEGORY_LABELS, type Category, type FreshFrozen, type Product } from "@/data/products";
+import { CATEGORY_LABELS, getProductPhotos, type Category, type FreshFrozen, type Product } from "@/data/products";
 
 const CATEGORIES: { value: "all" | Category; label: string }[] = [
   { value: "all", label: "All Products" },
@@ -190,26 +190,24 @@ export default function ProductList({ products }: { products: Product[] }) {
                   />
 
                   {/* Photo or placeholder */}
-                  <div
-                    className="w-full aspect-video relative overflow-hidden flex items-center justify-center"
-                    style={{ backgroundColor: "#f0f0f5" }}
-                  >
-                    {product.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={product.photoUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover absolute inset-0"
-                      />
-                    ) : (
-                      <span
-                        className="text-xs tracking-widest uppercase"
-                        style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}
+                  {(() => {
+                    const firstPhoto = getProductPhotos(product)[0];
+                    return (
+                      <div
+                        className="w-full aspect-video relative overflow-hidden flex items-center justify-center"
+                        style={{ backgroundColor: "#f0f0f5" }}
                       >
-                        Photo Coming Soon
-                      </span>
-                    )}
-                  </div>
+                        {firstPhoto ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={firstPhoto} alt={product.name} className="w-full h-full object-cover absolute inset-0" />
+                        ) : (
+                          <span className="text-xs tracking-widest uppercase" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
+                            Photo Coming Soon
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div className="p-5 flex flex-col gap-3 flex-1">
                     {/* Badges row */}

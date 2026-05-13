@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { CATEGORY_LABELS, type Category, type FreshFrozen, type Product } from "@/data/products";
+import { CATEGORY_LABELS, getProductPhotos, type Category, type FreshFrozen, type Product } from "@/data/products";
 
 const CATEGORIES = Object.entries(CATEGORY_LABELS) as [Category, string][];
 
@@ -39,7 +39,16 @@ const EMPTY_DRAFT: Partial<Product> = {
   marketPrice: null,
   salePrice: null,
   saleEndDate: null,
+  photos: [],
   photoUrl: null,
+};
+
+const inputStyle = {
+  border: "1px solid #03033f33",
+  color: "#03033f",
+  fontFamily: "var(--font-brand), sans-serif",
+  outline: "none",
+  backgroundColor: "#fff",
 };
 
 export default function AdminProducts() {
@@ -54,6 +63,8 @@ export default function AdminProducts() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [photoUrlInput, setPhotoUrlInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -69,48 +80,76 @@ export default function AdminProducts() {
   useEffect(() => { load(); }, []);
 
   function openAdd() {
-    setDraft({ ...EMPTY_DRAFT });
+    setDraft({ ...EMPTY_DRAFT, photos: [] });
     setDrawerMode("add");
     setError(null);
+    setUploadError(null);
+    setPhotoUrlInput("");
     setDrawerOpen(true);
   }
 
   function openEdit(product: Product) {
-    setDraft({ ...product });
+    setDraft({ ...product, photos: getProductPhotos(product) });
     setDrawerMode("edit");
     setError(null);
+    setUploadError(null);
+    setPhotoUrlInput("");
     setDrawerOpen(true);
   }
 
   function closeDrawer() {
     setDrawerOpen(false);
     setError(null);
+    setUploadError(null);
   }
 
-  function set<K extends keyof Product>(key: K, value: Product[K]) {
+  function setProp<K extends keyof Product>(key: K, value: Product[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
+  }
+
+  // ── Photo helpers ──────────────────────────────────────────────────────────
+  const photos = draft.photos ?? [];
+
+  function movePhoto(i: number, dir: -1 | 1) {
+    const next = [...photos];
+    const j = i + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    setDraft((d) => ({ ...d, photos: next }));
+  }
+
+  function removePhoto(i: number) {
+    setDraft((d) => ({ ...d, photos: (d.photos ?? []).filter((_, idx) => idx !== i) }));
+  }
+
+  function addPhotoUrl(url: string) {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    setDraft((d) => ({ ...d, photos: [...(d.photos ?? []), trimmed] }));
+    setPhotoUrlInput("");
   }
 
   async function handlePhotoUpload(file: File) {
     setUploading(true);
+    setUploadError(null);
     try {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/admin/upload", { method: "POST", body: form });
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error ?? "Photo upload failed.");
+        setUploadError(body.error ?? "Upload failed.");
         return;
       }
-      const { url } = await res.json();
-      set("photoUrl", url);
+      setDraft((d) => ({ ...d, photos: [...(d.photos ?? []), body.url] }));
     } catch {
-      setError("Photo upload failed.");
+      setUploadError("Network error — could not reach upload endpoint.");
     } finally {
       setUploading(false);
     }
   }
 
+  // ── Save / delete ──────────────────────────────────────────────────────────
   async function save() {
     setError(null);
     if (!draft.name?.trim()) { setError("Name is required."); return; }
@@ -119,33 +158,34 @@ export default function AdminProducts() {
 
     setSaving(true);
     try {
+      const payload = {
+        ...draft,
+        freshFrozen: (draft.freshFrozen as FreshFrozen) || null,
+        photos: draft.photos ?? [],
+        photoUrl: null,
+      };
+
       if (drawerMode === "add") {
         const id = slugify(draft.itemNo!);
-        const product: Product = {
-          ...EMPTY_DRAFT,
-          ...draft,
-          id,
-          freshFrozen: (draft.freshFrozen as FreshFrozen) || null,
-        } as Product;
         const res = await fetch("/api/admin/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(product),
+          body: JSON.stringify({ ...payload, id }),
         });
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body.error ?? "Failed to add product.");
+          const b = await res.json().catch(() => ({}));
+          setError(b.error ?? "Failed to add product.");
           return;
         }
       } else {
         const res = await fetch(`/api/admin/products/${draft.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...draft, freshFrozen: (draft.freshFrozen as FreshFrozen) || null }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body.error ?? "Failed to save product.");
+          const b = await res.json().catch(() => ({}));
+          setError(b.error ?? "Failed to save.");
           return;
         }
       }
@@ -164,6 +204,7 @@ export default function AdminProducts() {
     }
   }
 
+  // ── Filter ─────────────────────────────────────────────────────────────────
   const filtered = products.filter((p) => {
     if (catFilter !== "all" && p.category !== catFilter) return false;
     if (search.trim()) {
@@ -172,14 +213,6 @@ export default function AdminProducts() {
     }
     return true;
   });
-
-  const inputStyle = {
-    border: "1px solid #03033f33",
-    color: "#03033f",
-    fontFamily: "var(--font-brand), sans-serif",
-    outline: "none",
-    backgroundColor: "#fff",
-  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -264,122 +297,90 @@ export default function AdminProducts() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id} style={{ borderBottom: "1px solid #03033f08" }} className="hover:bg-gray-50 transition-colors">
-                  {/* Photo */}
-                  <td className="px-4 py-3">
-                    <div
-                      className="w-12 h-10 flex items-center justify-center overflow-hidden flex-shrink-0 relative"
-                      style={{ backgroundColor: CATEGORY_COLORS[p.category] + "18", border: `1px solid ${CATEGORY_COLORS[p.category]}33` }}
-                    >
-                      {p.photoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.photoUrl} alt="" className="w-full h-full object-cover absolute inset-0" />
-                      ) : (
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[p.category] + "66" }} />
-                      )}
-                    </div>
-                  </td>
-                  {/* Name */}
-                  <td className="px-4 py-3 max-w-xs">
-                    <div className="font-bold text-xs leading-snug" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
-                      {p.name}
-                    </div>
-                    <div className="text-xs mt-0.5" style={{ color: "#03033f55", fontFamily: "var(--font-brand), sans-serif" }}>
-                      #{p.itemNo}
-                    </div>
-                  </td>
-                  {/* Category */}
-                  <td className="px-4 py-3">
-                    <span
-                      className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase whitespace-nowrap"
-                      style={{ backgroundColor: CATEGORY_COLORS[p.category] + "18", color: CATEGORY_COLORS[p.category], fontFamily: "var(--font-brand), sans-serif" }}
-                    >
-                      {CATEGORY_LABELS[p.category]}
-                    </span>
-                  </td>
-                  {/* Subcategory */}
-                  <td className="px-4 py-3 text-xs" style={{ color: "#03033f88" }}>{p.subcategory}</td>
-                  {/* Unit */}
-                  <td className="px-4 py-3 text-xs font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{p.unit}</td>
-                  {/* F/F */}
-                  <td className="px-4 py-3 text-xs capitalize" style={{ color: "#03033f88" }}>{p.freshFrozen ?? "—"}</td>
-                  {/* Halal */}
-                  <td className="px-4 py-3 text-xs" style={{ color: p.halal ? "#16a34a" : "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
-                    {p.halal ? "✓" : "—"}
-                  </td>
-                  {/* Actions */}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {confirmDelete === p.id ? (
-                        <>
-                          <span className="text-xs" style={{ color: "#03033f88" }}>Delete?</span>
-                          <button
-                            onClick={() => remove(p.id)}
-                            className="text-xs font-bold px-2 py-1"
-                            style={{ backgroundColor: "#dc2626", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}
-                          >
-                            Yes
-                          </button>
-                          <button
-                            onClick={() => setConfirmDelete(null)}
-                            className="text-xs font-bold px-2 py-1"
-                            style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-                          >
-                            No
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => openEdit(p)}
-                            className="text-xs font-bold tracking-widest uppercase px-3 py-1.5 transition-opacity hover:opacity-70"
-                            style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => setConfirmDelete(p.id)}
-                            className="text-xs font-bold tracking-widest uppercase px-3 py-1.5 transition-opacity hover:opacity-70"
-                            style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((p) => {
+                const productPhotos = getProductPhotos(p);
+                return (
+                  <tr key={p.id} style={{ borderBottom: "1px solid #03033f08" }} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div
+                        className="w-12 h-10 flex items-center justify-center overflow-hidden flex-shrink-0 relative"
+                        style={{ backgroundColor: CATEGORY_COLORS[p.category] + "18", border: `1px solid ${CATEGORY_COLORS[p.category]}33` }}
+                      >
+                        {productPhotos.length > 0 ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={productPhotos[0]} alt="" className="w-full h-full object-cover absolute inset-0" />
+                        ) : (
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[p.category] + "66" }} />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 max-w-xs">
+                      <div className="font-bold text-xs leading-snug" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                        {p.name}
+                      </div>
+                      <div className="text-xs mt-0.5" style={{ color: "#03033f55", fontFamily: "var(--font-brand), sans-serif" }}>
+                        #{p.itemNo}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase whitespace-nowrap"
+                        style={{ backgroundColor: CATEGORY_COLORS[p.category] + "18", color: CATEGORY_COLORS[p.category], fontFamily: "var(--font-brand), sans-serif" }}
+                      >
+                        {CATEGORY_LABELS[p.category]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "#03033f88" }}>{p.subcategory}</td>
+                    <td className="px-4 py-3 text-xs font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{p.unit}</td>
+                    <td className="px-4 py-3 text-xs capitalize" style={{ color: "#03033f88" }}>{p.freshFrozen ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: p.halal ? "#16a34a" : "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {p.halal ? "✓" : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {confirmDelete === p.id ? (
+                          <>
+                            <span className="text-xs" style={{ color: "#03033f88" }}>Delete?</span>
+                            <button onClick={() => remove(p.id)} className="text-xs font-bold px-2 py-1" style={{ backgroundColor: "#dc2626", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Yes</button>
+                            <button onClick={() => setConfirmDelete(null)} className="text-xs font-bold px-2 py-1" style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>No</button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => openEdit(p)}
+                              className="text-xs font-bold tracking-widest uppercase px-3 py-1.5 transition-opacity hover:opacity-70"
+                              style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(p.id)}
+                              className="text-xs font-bold tracking-widest uppercase px-3 py-1.5 transition-opacity hover:opacity-70"
+                              style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* Drawer overlay */}
+      {/* ── Drawer ────────────────────────────────────────────────────────── */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0"
-            style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
-            onClick={closeDrawer}
-          />
+          <div className="absolute inset-0" style={{ backgroundColor: "rgba(0,0,0,0.35)" }} onClick={closeDrawer} />
 
-          {/* Drawer panel */}
-          <div
-            className="relative w-full max-w-lg h-full flex flex-col overflow-hidden"
-            style={{ backgroundColor: "#fff" }}
-          >
+          <div className="relative w-full max-w-lg h-full flex flex-col overflow-hidden" style={{ backgroundColor: "#fff" }}>
             {/* Drawer header */}
-            <div
-              className="px-6 py-5 flex items-center justify-between flex-shrink-0"
-              style={{ backgroundColor: "#03033f" }}
-            >
-              <h2
-                className="text-sm font-bold tracking-[0.2em] uppercase text-white"
-                style={{ fontFamily: "var(--font-brand), sans-serif" }}
-              >
+            <div className="px-6 py-5 flex items-center justify-between flex-shrink-0" style={{ backgroundColor: "#03033f" }}>
+              <h2 className="text-sm font-bold tracking-[0.2em] uppercase text-white" style={{ fontFamily: "var(--font-brand), sans-serif" }}>
                 {drawerMode === "add" ? "Add Product" : "Edit Product"}
               </h2>
               <button onClick={closeDrawer} className="text-white/60 hover:text-white transition-colors text-xl leading-none">×</button>
@@ -387,185 +388,164 @@ export default function AdminProducts() {
 
             {/* Drawer body */}
             <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-5">
-
               {error && (
                 <div className="px-4 py-3 text-xs" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
                   {error}
                 </div>
               )}
 
-              {/* Name */}
               <Field label="Name *">
-                <input
-                  type="text"
-                  value={draft.name ?? ""}
-                  onChange={(e) => set("name", e.target.value)}
-                  className="w-full px-3 py-2 text-sm"
-                  style={inputStyle}
-                  placeholder="e.g. Chicken Breast Boneless Skinless"
-                />
+                <input type="text" value={draft.name ?? ""} onChange={(e) => setProp("name", e.target.value)} className="w-full px-3 py-2 text-sm" style={inputStyle} placeholder="e.g. Chicken Breast Boneless Skinless" />
               </Field>
 
-              {/* Item No */}
               <Field label="Item No. *">
-                <input
-                  type="text"
-                  value={draft.itemNo ?? ""}
-                  onChange={(e) => set("itemNo", e.target.value)}
-                  className="w-full px-3 py-2 text-sm"
-                  style={inputStyle}
-                  placeholder="e.g. 157"
-                  disabled={drawerMode === "edit"}
-                />
+                <input type="text" value={draft.itemNo ?? ""} onChange={(e) => setProp("itemNo", e.target.value)} className="w-full px-3 py-2 text-sm" style={inputStyle} placeholder="e.g. 157" disabled={drawerMode === "edit"} />
                 {drawerMode === "add" && (
-                  <p className="text-xs mt-1" style={{ color: "#03033f66" }}>
-                    URL ID: <code>{slugify(draft.itemNo ?? "") || "—"}</code>
-                  </p>
+                  <p className="text-xs mt-1" style={{ color: "#03033f66" }}>URL ID: <code>{slugify(draft.itemNo ?? "") || "—"}</code></p>
                 )}
               </Field>
 
-              {/* Category */}
               <Field label="Category *">
-                <select
-                  value={draft.category ?? "chicken"}
-                  onChange={(e) => set("category", e.target.value as Category)}
-                  className="w-full px-3 py-2 text-sm"
-                  style={inputStyle}
-                >
-                  {CATEGORIES.map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
+                <select value={draft.category ?? "chicken"} onChange={(e) => setProp("category", e.target.value as Category)} className="w-full px-3 py-2 text-sm" style={inputStyle}>
+                  {CATEGORIES.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
                 </select>
               </Field>
 
-              {/* Subcategory */}
               <Field label="Subcategory">
-                <input
-                  type="text"
-                  value={draft.subcategory ?? ""}
-                  onChange={(e) => set("subcategory", e.target.value)}
-                  className="w-full px-3 py-2 text-sm"
-                  style={inputStyle}
-                  placeholder="e.g. Wings, Breast, Stew"
-                />
+                <input type="text" value={draft.subcategory ?? ""} onChange={(e) => setProp("subcategory", e.target.value)} className="w-full px-3 py-2 text-sm" style={inputStyle} placeholder="e.g. Wings, Breast, Stew" />
               </Field>
 
-              {/* Description */}
               <Field label="Description">
-                <textarea
-                  value={draft.description ?? ""}
-                  onChange={(e) => set("description", e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm resize-none"
-                  style={inputStyle}
-                  placeholder="Brief product description"
-                />
+                <textarea value={draft.description ?? ""} onChange={(e) => setProp("description", e.target.value)} rows={3} className="w-full px-3 py-2 text-sm resize-none" style={inputStyle} placeholder="Brief product description" />
               </Field>
 
-              {/* Unit + Fresh/Frozen row */}
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Unit *">
-                  <input
-                    type="text"
-                    value={draft.unit ?? ""}
-                    onChange={(e) => set("unit", e.target.value)}
-                    className="w-full px-3 py-2 text-sm"
-                    style={inputStyle}
-                    placeholder="KG, LBS, CASE…"
-                  />
+                  <input type="text" value={draft.unit ?? ""} onChange={(e) => setProp("unit", e.target.value)} className="w-full px-3 py-2 text-sm" style={inputStyle} placeholder="KG, LBS, CASE…" />
                 </Field>
                 <Field label="Fresh / Frozen">
-                  <select
-                    value={draft.freshFrozen ?? ""}
-                    onChange={(e) => set("freshFrozen", (e.target.value as FreshFrozen) || null)}
-                    className="w-full px-3 py-2 text-sm"
-                    style={inputStyle}
-                  >
-                    {FF_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
+                  <select value={draft.freshFrozen ?? ""} onChange={(e) => setProp("freshFrozen", (e.target.value as FreshFrozen) || null)} className="w-full px-3 py-2 text-sm" style={inputStyle}>
+                    {FF_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </Field>
               </div>
 
-              {/* Supplier */}
               <Field label="Supplier">
-                <input
-                  type="text"
-                  value={draft.supplier ?? ""}
-                  onChange={(e) => set("supplier", e.target.value || null)}
-                  className="w-full px-3 py-2 text-sm"
-                  style={inputStyle}
-                  placeholder="e.g. Agrosuper (optional)"
-                />
+                <input type="text" value={draft.supplier ?? ""} onChange={(e) => setProp("supplier", e.target.value || null)} className="w-full px-3 py-2 text-sm" style={inputStyle} placeholder="e.g. Agrosuper (optional)" />
               </Field>
 
-              {/* Halal */}
               <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="halal"
-                  checked={draft.halal ?? true}
-                  onChange={(e) => set("halal", e.target.checked)}
-                  className="w-4 h-4"
-                  style={{ accentColor: "#03033f" }}
-                />
-                <label
-                  htmlFor="halal"
-                  className="text-xs font-bold tracking-widest uppercase cursor-pointer"
-                  style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-                >
+                <input type="checkbox" id="halal" checked={draft.halal ?? true} onChange={(e) => setProp("halal", e.target.checked)} className="w-4 h-4" style={{ accentColor: "#03033f" }} />
+                <label htmlFor="halal" className="text-xs font-bold tracking-widest uppercase cursor-pointer" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                   Halal Certified
                 </label>
               </div>
 
-              {/* Photo */}
-              <Field label="Photo">
-                {draft.photoUrl ? (
+              {/* ── Photos ─────────────────────────────────────────────────── */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>
+                    Photos{photos.length > 0 ? ` (${photos.length})` : ""}
+                  </span>
+                  {photos.length > 0 && (
+                    <span className="text-xs" style={{ color: "#03033f55", fontFamily: "var(--font-brand), sans-serif" }}>
+                      First photo shown in catalog
+                    </span>
+                  )}
+                </div>
+
+                {/* Photo list */}
+                {photos.length > 0 && (
                   <div className="flex flex-col gap-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={draft.photoUrl} alt="" className="w-full h-40 object-cover" style={{ border: "1px solid #03033f14" }} />
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex-1 px-3 py-2 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-70"
-                        style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-                      >
-                        Replace
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set("photoUrl", null)}
-                        className="px-3 py-2 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-70"
-                        style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      className="w-full px-4 py-3 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40"
-                      style={{ border: "1px dashed #03033f44", color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}
-                    >
-                      {uploading ? "Uploading…" : "Upload Photo"}
-                    </button>
-                    <p className="text-xs text-center" style={{ color: "#03033f44" }}>or paste a URL below</p>
-                    <input
-                      type="url"
-                      value={draft.photoUrl ?? ""}
-                      onChange={(e) => set("photoUrl", e.target.value || null)}
-                      className="w-full px-3 py-2 text-sm"
-                      style={inputStyle}
-                      placeholder="https://…"
-                    />
+                    {photos.map((url, i) => (
+                      <div key={`${url}-${i}`} className="flex items-center gap-2 p-2" style={{ border: "1px solid #03033f0d", backgroundColor: "#f8f8fb" }}>
+                        {/* Thumbnail */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="w-16 h-12 object-cover flex-shrink-0" style={{ border: "1px solid #03033f14" }} />
+
+                        {/* Label */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                            {i === 0 ? "Main photo" : `Photo ${i + 1}`}
+                          </p>
+                          <p className="text-xs truncate mt-0.5" style={{ color: "#03033f44" }}>{url.split("/").pop()}</p>
+                        </div>
+
+                        {/* Order controls */}
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            onClick={() => movePhoto(i, -1)}
+                            disabled={i === 0}
+                            className="w-6 h-5 text-xs flex items-center justify-center disabled:opacity-20 transition-opacity hover:opacity-60"
+                            style={{ border: "1px solid #03033f22", color: "#03033f" }}
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => movePhoto(i, 1)}
+                            disabled={i === photos.length - 1}
+                            className="w-6 h-5 text-xs flex items-center justify-center disabled:opacity-20 transition-opacity hover:opacity-60"
+                            style={{ border: "1px solid #03033f22", color: "#03033f" }}
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                        </div>
+
+                        {/* Remove */}
+                        <button
+                          onClick={() => removePhoto(i)}
+                          className="w-6 h-6 flex items-center justify-center text-sm transition-opacity hover:opacity-70"
+                          style={{ color: "#dc2626" }}
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
+
+                {/* Upload button */}
+                <button
+                  type="button"
+                  onClick={() => { setUploadError(null); fileInputRef.current?.click(); }}
+                  disabled={uploading}
+                  className="w-full px-4 py-3 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40"
+                  style={{ border: "1px dashed #03033f44", color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}
+                >
+                  {uploading ? "Uploading…" : photos.length > 0 ? "+ Add Another Photo" : "Upload Photo"}
+                </button>
+
+                {/* Upload error — shown right below button */}
+                {uploadError && (
+                  <div className="px-3 py-2 text-xs leading-relaxed" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
+                    {uploadError}
+                  </div>
+                )}
+
+                {/* URL paste */}
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={photoUrlInput}
+                    onChange={(e) => setPhotoUrlInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPhotoUrl(photoUrlInput); } }}
+                    className="flex-1 px-3 py-2 text-sm"
+                    style={inputStyle}
+                    placeholder="Or paste a URL…"
+                  />
+                  <button
+                    onClick={() => addPhotoUrl(photoUrlInput)}
+                    disabled={!photoUrlInput.trim()}
+                    className="px-4 py-2 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-30"
+                    style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+                  >
+                    Add
+                  </button>
+                </div>
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -577,14 +557,11 @@ export default function AdminProducts() {
                     e.target.value = "";
                   }}
                 />
-              </Field>
+              </div>
             </div>
 
             {/* Drawer footer */}
-            <div
-              className="px-6 py-4 flex gap-3 flex-shrink-0"
-              style={{ borderTop: "1px solid #03033f0d" }}
-            >
+            <div className="px-6 py-4 flex gap-3 flex-shrink-0" style={{ borderTop: "1px solid #03033f0d" }}>
               <button
                 onClick={save}
                 disabled={saving}
@@ -611,10 +588,7 @@ export default function AdminProducts() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label
-        className="text-xs font-bold tracking-widest uppercase"
-        style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}
-      >
+      <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>
         {label}
       </label>
       {children}
