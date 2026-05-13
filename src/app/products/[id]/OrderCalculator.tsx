@@ -13,7 +13,7 @@ function fmt(n: number, decimals = 2) {
 
 export default function OrderCalculator({ product }: { product: Product }) {
   const { addItem, items } = useCart();
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState(0);
   const [priceData, setPriceData] = useState<PriceData | null>(null);
   const [added, setAdded] = useState(false);
 
@@ -28,13 +28,14 @@ export default function OrderCalculator({ product }: { product: Product }) {
   }, [product.id]);
 
   const estimatedWeight =
-    priceData?.caseWeight != null ? qty * priceData.caseWeight : null;
+    qty > 0 && priceData?.caseWeight != null ? qty * priceData.caseWeight : null;
   const estimatedPrice =
     estimatedWeight != null && priceData?.pricePerUnit != null
       ? estimatedWeight * priceData.pricePerUnit
       : null;
 
   function handleAdd() {
+    if (qty === 0) return;
     addItem(
       { productId: product.id, name: product.name, category: product.category, unit: product.unit },
       qty
@@ -60,7 +61,7 @@ export default function OrderCalculator({ product }: { product: Product }) {
             style={{ borderColor: "#03033f33" }}
           >
             <button
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
+              onClick={() => setQty((q) => Math.max(0, q - 1))}
               className="w-8 h-10 flex items-center justify-center text-base font-bold hover:bg-gray-50 transition-colors shrink-0"
               style={{ color: "#03033f", borderRight: "1px solid #03033f22" }}
             >
@@ -68,10 +69,10 @@ export default function OrderCalculator({ product }: { product: Product }) {
             </button>
             <input
               type="number"
-              min={1}
+              min={0}
               value={qty}
-              onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-              className="flex-1 h-10 text-center text-sm font-bold outline-none"
+              onChange={(e) => setQty(Math.max(0, parseInt(e.target.value) || 0))}
+              className="flex-1 min-w-0 h-10 text-center text-sm font-bold outline-none"
               style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
             />
             <button
@@ -133,11 +134,14 @@ export default function OrderCalculator({ product }: { product: Product }) {
       {/* Add to cart */}
       <button
         onClick={handleAdd}
+        disabled={qty === 0}
         className="w-full py-3.5 font-bold text-sm tracking-widest uppercase transition-all duration-200"
         style={{
           backgroundColor: added ? "#16a34a" : "#03033f",
           color: "#ffffff",
           fontFamily: "var(--font-brand), sans-serif",
+          opacity: qty === 0 ? 0.4 : 1,
+          cursor: qty === 0 ? "not-allowed" : "pointer",
         }}
       >
         {added ? "Added to Cart ✓" : "Add to Cart"}

@@ -3,12 +3,13 @@ export interface PriceData {
   caseWeight: number | null;
 }
 
-// Gracefully return null if Vercel KV is not configured.
 async function getKV() {
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return null;
+  const url = process.env.gonard_KV_REST_API_URL;
+  const token = process.env.gonard_KV_REST_API_TOKEN;
+  if (!url || !token) return null;
   try {
-    const { kv } = await import("@vercel/kv");
-    return kv;
+    const { createClient } = await import("@vercel/kv");
+    return createClient({ url, token });
   } catch {
     return null;
   }
