@@ -59,7 +59,7 @@ export default function Footer() {
             <ul className="space-y-3 text-sm">
               {[
                 { label: "Sign In", href: "/login" },
-                { label: "Place an Order", href: "/order" },
+                { label: "Place an Order", href: "/products" },
                 { label: "Order History", href: "/account/orders" },
               ].map((link) => (
                 <li key={link.href}>

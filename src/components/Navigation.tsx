@@ -168,7 +168,7 @@ export default function Navigation({ isAdmin }: { isAdmin?: boolean }) {
           </Link>
 
           <Link
-            href="/order"
+            href="/products"
             className="bg-white text-sm font-bold tracking-widest uppercase px-6 py-2.5 hover:bg-white/90 transition-colors duration-200"
             style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
           >
@@ -255,7 +255,7 @@ export default function Navigation({ isAdmin }: { isAdmin?: boolean }) {
             </Link>
           )}
           <Link
-            href="/order"
+            href="/products"
             className="bg-white text-sm font-bold tracking-widest uppercase px-6 py-3 text-center hover:bg-white/90 transition-colors"
             style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
             onClick={() => setMobileOpen(false)}

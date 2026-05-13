@@ -290,7 +290,7 @@ export default function Products() {
               Contact Us
             </Link>
             <Link
-              href="/order"
+              href="/products"
               className="px-8 py-3.5 border font-bold text-sm tracking-widest uppercase hover:bg-gray-50 transition-colors"
               style={{ borderColor: "#03033f", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
             >
