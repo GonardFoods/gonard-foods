@@ -16,6 +16,7 @@ export interface Product {
   marketPrice: number | null;
   salePrice: number | null;
   saleEndDate: string | null;
+  photoUrl?: string | null;
 }
 
 export function getWeightUnit(unit: string): "KG" | "LB" {

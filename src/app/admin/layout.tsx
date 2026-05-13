@@ -23,6 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <nav className="flex gap-4">
               {[
                 { label: "Dashboard", href: "/admin" },
+                { label: "Products", href: "/admin/products" },
                 { label: "Prices", href: "/admin/prices" },
               ].map((l) => (
                 <Link

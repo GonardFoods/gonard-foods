@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { products, CATEGORY_LABELS, type Category } from "@/data/products";
+import { getAllProducts } from "@/lib/products-store";
+import { CATEGORY_LABELS, type Category } from "@/data/products";
 import OrderCalculator from "./OrderCalculator";
 
-export function generateStaticParams() {
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  const products = await getAllProducts();
   return products.map((p) => ({ id: p.id }));
 }
 
@@ -14,6 +18,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
+  const products = await getAllProducts();
   const product = products.find((p) => p.id === id);
   if (!product) return {};
   return {
@@ -31,39 +36,26 @@ const CATEGORY_COLORS: Record<Category, string> = {
   seafood: "#0891b2",
 };
 
-function buildExpandedDescription(product: (typeof products)[number]): string {
-  const parts: string[] = [product.description];
-
-  if (product.halal) {
-    parts.push("This product is halal certified.");
-  }
-  if (product.freshFrozen === "fresh") {
-    parts.push("Delivered fresh — never frozen.");
-  } else if (product.freshFrozen === "frozen") {
-    parts.push("Frozen to preserve quality and extend shelf life.");
-  } else if (product.freshFrozen === "both") {
-    parts.push("Available in both fresh and frozen options under the same item number.");
-  }
-  if (product.supplier) {
-    parts.push(`Sourced from ${product.supplier}.`);
-  }
-
-  return parts.join(" ");
-}
-
 export default async function ProductPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const products = await getAllProducts();
   const product = products.find((p) => p.id === id);
   if (!product) notFound();
 
   const accentColor = CATEGORY_COLORS[product.category];
-  const expanded = buildExpandedDescription(product);
 
-  // Related products: same category, excluding this one, max 4
+  const parts: string[] = [product.description];
+  if (product.halal) parts.push("This product is halal certified.");
+  if (product.freshFrozen === "fresh") parts.push("Delivered fresh — never frozen.");
+  else if (product.freshFrozen === "frozen") parts.push("Frozen to preserve quality and extend shelf life.");
+  else if (product.freshFrozen === "both") parts.push("Available in both fresh and frozen options under the same item number.");
+  if (product.supplier) parts.push(`Sourced from ${product.supplier}.`);
+  const expanded = parts.join(" ");
+
   const related = products
     .filter((p) => p.category === product.category && p.id !== product.id)
     .slice(0, 4);
@@ -94,27 +86,34 @@ export default async function ProductPage({
 
           {/* Image area */}
           <div
-            className="aspect-square flex flex-col items-center justify-center gap-4 relative"
+            className="aspect-square flex flex-col items-center justify-center gap-4 relative overflow-hidden"
             style={{ backgroundColor: accentColor + "10", border: `1px solid ${accentColor}22` }}
           >
-            {/* Category colour strip */}
-            <div
-              className="absolute top-0 left-0 right-0 h-1"
-              style={{ backgroundColor: accentColor }}
-            />
-            <div className="flex flex-col items-center gap-3 opacity-40">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <path d="M21 15l-5-5L5 21" />
-              </svg>
-            </div>
-            <p
-              className="text-xs tracking-widest uppercase"
-              style={{ color: accentColor + "88", fontFamily: "var(--font-brand), sans-serif" }}
-            >
-              Photo Coming Soon
-            </p>
+            <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: accentColor }} />
+            {product.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={product.photoUrl}
+                alt={product.name}
+                className="w-full h-full object-cover absolute inset-0"
+              />
+            ) : (
+              <>
+                <div className="flex flex-col items-center gap-3 opacity-40">
+                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                </div>
+                <p
+                  className="text-xs tracking-widest uppercase"
+                  style={{ color: accentColor + "88", fontFamily: "var(--font-brand), sans-serif" }}
+                >
+                  Photo Coming Soon
+                </p>
+              </>
+            )}
           </div>
 
           {/* Info */}
@@ -170,10 +169,8 @@ export default async function ProductPage({
               </h1>
             </div>
 
-            {/* Divider */}
             <div className="h-px w-12" style={{ backgroundColor: accentColor }} />
 
-            {/* Description */}
             <p className="text-sm leading-relaxed" style={{ color: "#03033fbb" }}>
               {expanded}
             </p>
@@ -197,7 +194,6 @@ export default async function ProductPage({
               ))}
             </div>
 
-            {/* Inventory note */}
             <div
               className="px-4 py-3 text-xs leading-relaxed"
               style={{ backgroundColor: "#f8f8fb", border: "1px solid #03033f0d", color: "#03033f99" }}
@@ -206,7 +202,6 @@ export default async function ProductPage({
               Contact us to confirm current stock and arrange delivery or pickup.
             </div>
 
-            {/* Order calculator */}
             <OrderCalculator product={product} />
           </div>
         </div>
