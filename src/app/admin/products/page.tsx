@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { upload } from "@vercel/blob/client";
 import { CATEGORY_LABELS, getProductPhotos, type Category, type FreshFrozen, type Product } from "@/data/products";
 
 const CATEGORIES = Object.entries(CATEGORY_LABELS) as [Category, string][];
@@ -133,17 +134,14 @@ export default function AdminProducts() {
     setUploading(true);
     setUploadError(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/admin/upload", { method: "POST", body: form });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setUploadError(body.error ?? "Upload failed.");
-        return;
-      }
-      setDraft((d) => ({ ...d, photos: [...(d.photos ?? []), body.url] }));
-    } catch {
-      setUploadError("Network error — could not reach upload endpoint.");
+      // upload() goes directly from browser → Vercel Blob, bypassing Next.js body size limits
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/admin/upload",
+      });
+      setDraft((d) => ({ ...d, photos: [...(d.photos ?? []), blob.url] }));
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Upload failed — check file type and try again.");
     } finally {
       setUploading(false);
     }
