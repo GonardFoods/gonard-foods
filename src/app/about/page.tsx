@@ -66,13 +66,13 @@ export default function About() {
           <div className="w-10 h-0.5" style={{ backgroundColor: "#03033f" }} />
           <div className="flex flex-col gap-5 text-base leading-relaxed" style={{ color: "#03033f99" }}>
             <p>
-              Gonard Foods is a Calgary-based meat wholesaler supplying premium quality cuts to restaurants, food service businesses, and retail customers across Alberta.
+              Gonard Foods is a Calgary-based meat wholesaler supplying premium quality cuts to restaurants and food service businesses across Alberta.
             </p>
             <p>
-              We work directly with trusted suppliers to bring a wide selection of beef, pork, poultry, lamb, veal, and specialty products — over 200 items — at competitive wholesale and retail pricing.
+              We work directly with trusted suppliers to bring a wide selection of beef, poultry, lamb, goat, turkey, duck, and seafood — over 80 products — at competitive wholesale pricing.
             </p>
             <p>
-              Our clients range from some of Calgary&apos;s finest restaurants to local families stocking their freezers. Whether you need a recurring wholesale account or a one-time order, we&apos;re built to serve you.
+              Our clients include some of Calgary&apos;s finest restaurants, food service operations, and institutions. We offer recurring wholesale accounts with pricing tailored to your volume and needs.
             </p>
           </div>
         </div>

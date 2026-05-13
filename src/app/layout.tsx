@@ -17,7 +17,7 @@ const brandFont = Josefin_Sans({
 export const metadata: Metadata = {
   title: "Gonard Foods | Premium Meat Wholesale — Calgary, Alberta",
   description:
-    "Gonard Foods supplies premium quality meats to Calgary's restaurants, businesses, and the public. Wholesale and retail delivery across Calgary, Greater Calgary, and Edmonton.",
+    "Gonard Foods supplies premium quality meats to Calgary's restaurants and food service businesses. Wholesale delivery across Calgary, Greater Calgary, and Edmonton.",
 };
 
 export default async function RootLayout({

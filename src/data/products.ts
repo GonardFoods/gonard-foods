@@ -86,7 +86,7 @@ export const products: Product[] = [
   {
     id: "205",
     itemNo: "205",
-    name: "Cornish Hens (under 1 kg)",
+    name: "Cornish Hens",
     category: "chicken",
     subcategory: "Whole Birds",
     description: "Small whole Cornish game hens, under 1 kg each.",
@@ -152,7 +152,7 @@ export const products: Product[] = [
   {
     id: "201",
     itemNo: "201",
-    name: "Split Chicken Wings — Tip Off (Frozen, Bulk)",
+    name: "Split Chicken Wings — Tip Off",
     category: "chicken",
     subcategory: "Wings",
     description: "Split, tip-off chicken wings. Bulk frozen, sold by kg.",
@@ -168,7 +168,7 @@ export const products: Product[] = [
   {
     id: "202",
     itemNo: "202",
-    name: "Split Chicken Wings (Fresh)",
+    name: "Split Chicken Wings",
     category: "chicken",
     subcategory: "Wings",
     description: "Fresh split chicken wings.",
@@ -216,7 +216,7 @@ export const products: Product[] = [
   {
     id: "223",
     itemNo: "223",
-    name: "Cooked Split Chicken Wings GF (4 kg Case)",
+    name: "Cooked Split Chicken Wings GF",
     category: "chicken",
     subcategory: "Wings",
     description: "Pre-cooked gluten-free split chicken wings. 4 kg case.",
@@ -232,7 +232,7 @@ export const products: Product[] = [
   {
     id: "1004",
     itemNo: "1004",
-    name: "Jumbo Chicken Wings (IQF)",
+    name: "Jumbo Chicken Wings",
     category: "chicken",
     subcategory: "Wings",
     description: "Individually quick frozen jumbo chicken wings.",
@@ -266,7 +266,7 @@ export const products: Product[] = [
   {
     id: "207",
     itemNo: "207",
-    name: "Legs Back Attached (Fresh)",
+    name: "Legs Back Attached",
     category: "chicken",
     subcategory: "Legs & Drumsticks",
     description: "Fresh chicken leg quarters with back attached.",
@@ -282,7 +282,7 @@ export const products: Product[] = [
   {
     id: "209",
     itemNo: "209",
-    name: "Legs Back Attached (Frozen)",
+    name: "Legs Back Attached",
     category: "chicken",
     subcategory: "Legs & Drumsticks",
     description: "Frozen chicken leg quarters with back attached.",
@@ -298,7 +298,7 @@ export const products: Product[] = [
   {
     id: "280",
     itemNo: "280",
-    name: "Legs Back Attached (Frozen, 5 kg Case)",
+    name: "Legs Back Attached",
     category: "chicken",
     subcategory: "Legs & Drumsticks",
     description: "Frozen chicken leg quarters with back attached. Packed in 5 kg cases.",
@@ -314,7 +314,7 @@ export const products: Product[] = [
   {
     id: "128",
     itemNo: "128",
-    name: "Chicken Drumsticks — Farm Fresh",
+    name: "Chicken Drumsticks",
     category: "chicken",
     subcategory: "Legs & Drumsticks",
     description: "Farm fresh chicken drumsticks.",
@@ -348,7 +348,7 @@ export const products: Product[] = [
   {
     id: "108",
     itemNo: "108",
-    name: "Boneless Skinless Chicken Leg Meat (5 kg Tubes)",
+    name: "Boneless Skinless Chicken Leg Meat",
     category: "chicken",
     subcategory: "Leg Meat",
     description: "Boneless, skinless chicken leg meat. Frozen. Packed in 5 kg tubes.",
@@ -364,7 +364,7 @@ export const products: Product[] = [
   {
     id: "150",
     itemNo: "150",
-    name: "Chicken Leg Meat — Agrosuper (5 kg Packs)",
+    name: "Chicken Leg Meat — Agrosuper",
     category: "chicken",
     subcategory: "Leg Meat",
     description: "Boneless chicken leg meat from Agrosuper. Frozen. Packed in 5 kg packages.",
@@ -380,7 +380,7 @@ export const products: Product[] = [
   {
     id: "214",
     itemNo: "214",
-    name: "Fresh Boneless Skinless Chicken Leg Meat",
+    name: "Boneless Skinless Chicken Leg Meat",
     category: "chicken",
     subcategory: "Leg Meat",
     description: "Fresh boneless, skinless chicken leg meat.",
@@ -430,7 +430,7 @@ export const products: Product[] = [
   {
     id: "156",
     itemNo: "156",
-    name: "Chicken Breast (6 oz Portions)",
+    name: "Chicken Breast — Portioned",
     category: "chicken",
     subcategory: "Breast",
     description: "Portioned chicken breast at 6 oz each. Frozen.",
@@ -446,7 +446,7 @@ export const products: Product[] = [
   {
     id: "157",
     itemNo: "157",
-    name: "Chicken Breast Boneless Skinless — Farm Fresh",
+    name: "Chicken Breast Boneless Skinless",
     category: "chicken",
     subcategory: "Breast",
     description: "Farm fresh boneless, skinless chicken breast.",
@@ -462,7 +462,7 @@ export const products: Product[] = [
   {
     id: "283",
     itemNo: "283",
-    name: "Chicken Breast Natural Fresh (Fillet Out)",
+    name: "Chicken Breast Natural (Fillet Out)",
     category: "chicken",
     subcategory: "Breast",
     description: "Fresh natural chicken breast, fillet removed.",
@@ -478,7 +478,7 @@ export const products: Product[] = [
   {
     id: "216",
     itemNo: "216",
-    name: "Chicken Breast Boneless Skinless (Frozen)",
+    name: "Chicken Breast Boneless Skinless",
     category: "chicken",
     subcategory: "Breast",
     description: "Frozen boneless, skinless chicken breast.",
@@ -590,7 +590,7 @@ export const products: Product[] = [
   {
     id: "527",
     itemNo: "527",
-    name: "Chicken Tenders — Agrosuper (Frozen)",
+    name: "Chicken Tenders — Agrosuper",
     category: "chicken",
     subcategory: "Breast",
     description: "Frozen chicken tenders from Agrosuper.",
@@ -624,7 +624,7 @@ export const products: Product[] = [
   {
     id: "212",
     itemNo: "212",
-    name: "Fresh Chicken Thighs",
+    name: "Chicken Thighs",
     category: "chicken",
     subcategory: "Thighs",
     description: "Fresh bone-in chicken thighs.",
@@ -642,7 +642,7 @@ export const products: Product[] = [
   {
     id: "242",
     itemNo: "242",
-    name: "Chicken Feet (Fresh)",
+    name: "Chicken Feet",
     category: "chicken",
     subcategory: "Offal & Specialty",
     description: "Fresh chicken feet / paws.",
@@ -658,7 +658,7 @@ export const products: Product[] = [
   {
     id: "1005",
     itemNo: "1005",
-    name: "Chicken Hearts (Fresh)",
+    name: "Chicken Hearts",
     category: "chicken",
     subcategory: "Offal & Specialty",
     description: "Fresh chicken hearts.",
@@ -674,7 +674,7 @@ export const products: Product[] = [
   {
     id: "1006",
     itemNo: "1006",
-    name: "Chicken Gizzards (Frozen)",
+    name: "Chicken Gizzards",
     category: "chicken",
     subcategory: "Offal & Specialty",
     description: "Frozen chicken gizzards.",
@@ -690,7 +690,7 @@ export const products: Product[] = [
   {
     id: "1009",
     itemNo: "1009",
-    name: "Chicken Liver (Fresh)",
+    name: "Chicken Liver",
     category: "chicken",
     subcategory: "Offal & Specialty",
     description: "Fresh chicken livers.",
@@ -788,7 +788,7 @@ export const products: Product[] = [
   {
     id: "367",
     itemNo: "367",
-    name: "Beef Stew (Fresh)",
+    name: "Beef Stew",
     category: "beef",
     subcategory: "Stew",
     description: "Fresh beef stew cuts.",
@@ -804,7 +804,7 @@ export const products: Product[] = [
   {
     id: "368",
     itemNo: "368",
-    name: "Beef Stew (Frozen)",
+    name: "Beef Stew",
     category: "beef",
     subcategory: "Stew",
     description: "Frozen beef stew cuts.",
@@ -886,15 +886,15 @@ export const products: Product[] = [
   {
     id: "112",
     itemNo: "112",
-    name: "Lamb Shank (Retail Pack)",
+    name: "Lamb Shank — Pack",
     category: "lamb",
     subcategory: "Shank",
-    description: "Frozen lamb shank, retail packed.",
+    description: "Frozen lamb shank, individually packed.",
     unit: "KG",
     freshFrozen: "frozen",
     halal: true,
     supplier: null,
-    tags: ["shank", "retail", "frozen"],
+    tags: ["shank", "frozen"],
     marketPrice: null,
     salePrice: null,
     saleEndDate: null,
@@ -1084,7 +1084,7 @@ export const products: Product[] = [
   {
     id: "118",
     itemNo: "118",
-    name: "Basa Fillets (Bulk Frozen)",
+    name: "Basa Fillets",
     category: "seafood",
     subcategory: "Basa",
     description: "Basa fillets, bulk frozen. 18 up count.",
@@ -1100,7 +1100,7 @@ export const products: Product[] = [
   {
     id: "1180",
     itemNo: "1180",
-    name: "Basa Fillets (IQF)",
+    name: "Basa Fillets",
     category: "seafood",
     subcategory: "Basa",
     description: "Individually quick frozen basa fillets.",
@@ -1148,7 +1148,7 @@ export const products: Product[] = [
   {
     id: "377",
     itemNo: "377",
-    name: "Cod Loins (6 oz)",
+    name: "Cod Loins",
     category: "seafood",
     subcategory: "Cod",
     description: "Frozen cod loins, 6 oz portions.",
@@ -1164,7 +1164,7 @@ export const products: Product[] = [
   {
     id: "231",
     itemNo: "231",
-    name: "Pompano Golden (15 kg)",
+    name: "Pompano Golden",
     category: "seafood",
     subcategory: "Pompano",
     description: "Frozen golden pompano fish. 15 kg per unit.",
@@ -1180,7 +1180,7 @@ export const products: Product[] = [
   {
     id: "1031",
     itemNo: "1031",
-    name: "Prawns 21–25 (20 lb Case)",
+    name: "Prawns 21–25",
     category: "seafood",
     subcategory: "Prawns",
     description: "Frozen 21–25 count prawns. 20 lb case.",
@@ -1196,7 +1196,7 @@ export const products: Product[] = [
   {
     id: "1032",
     itemNo: "1032",
-    name: "Prawns 16–20 (20 lb Case)",
+    name: "Prawns 16–20",
     category: "seafood",
     subcategory: "Prawns",
     description: "Frozen 16–20 count prawns. 20 lb case.",
@@ -1212,7 +1212,7 @@ export const products: Product[] = [
   {
     id: "1181",
     itemNo: "1181",
-    name: "Kingfish (10 lb Net)",
+    name: "Kingfish",
     category: "seafood",
     subcategory: "Kingfish",
     description: "Frozen kingfish, 10 lb net weight.",

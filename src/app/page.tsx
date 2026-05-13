@@ -24,8 +24,8 @@ const features = [
     ),
   },
   {
-    title: "Wholesale & Retail",
-    description: "Custom pricing for restaurants and businesses, with retail availability for the public.",
+    title: "Wholesale Pricing",
+    description: "Custom pricing for restaurants, food service businesses, and institutions.",
     icon: (
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -228,7 +228,7 @@ export default function Home() {
           </h2>
           <div className="w-12 h-0.5 bg-white/30" />
           <p className="text-white/70 leading-relaxed text-base">
-            Gonard Foods is a Calgary-based meat wholesaler supplying premium cuts to restaurants, food service businesses, and retail customers across Alberta. We pride ourselves on quality, consistency, and building lasting relationships with our clients.
+            Gonard Foods is a Calgary-based meat wholesaler supplying premium cuts to restaurants and food service businesses across Alberta. We pride ourselves on quality, consistency, and building lasting relationships with our clients.
           </p>
           <Link
             href="/about"
