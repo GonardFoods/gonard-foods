@@ -1,11 +1,39 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
-import { CATEGORY_LABELS } from "@/data/products";
+import { CATEGORY_LABELS, getWeightUnit } from "@/data/products";
+import type { PriceData } from "@/lib/prices";
+
+function fmt(n: number, decimals = 2) {
+  return n.toLocaleString("en-CA", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
 
 export default function CartPage() {
   const { items, itemCount, updateQty, removeItem, clearCart } = useCart();
+  const [prices, setPrices] = useState<Record<string, PriceData>>({});
+
+  useEffect(() => {
+    if (items.length === 0) return;
+    items.forEach((item) => {
+      fetch(`/api/prices/${item.productId}`)
+        .then((r) => r.json())
+        .then((d: PriceData) => setPrices((prev) => ({ ...prev, [item.productId]: d })))
+        .catch(() => {});
+    });
+  }, [items]);
+
+  const estimatedTotal = items.reduce((sum, item) => {
+    const p = prices[item.productId];
+    if (!p?.caseWeight || !p?.pricePerUnit) return sum;
+    return sum + item.quantity * p.caseWeight * p.pricePerUnit;
+  }, 0);
+
+  const hasAnyPrice = items.some((item) => {
+    const p = prices[item.productId];
+    return p?.caseWeight != null && p?.pricePerUnit != null;
+  });
 
   if (itemCount === 0) {
     return (
@@ -81,62 +109,90 @@ export default function CartPage() {
 
           {/* Item list */}
           <div className="flex flex-col divide-y" style={{ borderTop: "1px solid #03033f0d", borderBottom: "1px solid #03033f0d" }}>
-            {items.map((item) => (
-              <div key={item.productId} className="py-5 flex items-start gap-4">
-                <div className="flex-1 min-w-0">
-                  <Link
-                    href={`/products/${item.productId}`}
-                    className="font-bold text-sm hover:opacity-70 transition-opacity"
-                    style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-                  >
-                    {item.name}
-                  </Link>
-                  <p className="text-xs mt-1 tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
-                    {CATEGORY_LABELS[item.category]} · {item.unit}
-                  </p>
-                </div>
+            {items.map((item) => {
+              const p = prices[item.productId];
+              const weightUnit = getWeightUnit(item.unit);
+              const estWeight = p?.caseWeight != null ? item.quantity * p.caseWeight : null;
+              const estPrice = estWeight != null && p?.pricePerUnit != null ? estWeight * p.pricePerUnit : null;
 
-                {/* Quantity controls */}
-                <div className="flex items-center gap-2 shrink-0">
+              return (
+                <div key={item.productId} className="py-5 flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      href={`/products/${item.productId}`}
+                      className="font-bold text-sm hover:opacity-70 transition-opacity"
+                      style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+                    >
+                      {item.name}
+                    </Link>
+                    <p className="text-xs mt-0.5 tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {CATEGORY_LABELS[item.category]} · {item.unit}
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {estWeight != null ? (
+                        <>
+                          ~{fmt(estWeight, 1)} {weightUnit}
+                          {estPrice != null && <> · ~${fmt(estPrice)}</>}
+                        </>
+                      ) : (
+                        <span style={{ color: "#03033f44" }}>Price not set</span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Quantity controls */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => updateQty(item.productId, item.quantity - 1)}
+                      className="w-7 h-7 flex items-center justify-center border text-sm font-bold hover:bg-gray-50 transition-colors"
+                      style={{ borderColor: "#03033f33", color: "#03033f" }}
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center text-sm font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {item.quantity}
+                    </span>
+                    <button
+                      onClick={() => updateQty(item.productId, item.quantity + 1)}
+                      className="w-7 h-7 flex items-center justify-center border text-sm font-bold hover:bg-gray-50 transition-colors"
+                      style={{ borderColor: "#03033f33", color: "#03033f" }}
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {/* Remove */}
                   <button
-                    onClick={() => updateQty(item.productId, item.quantity - 1)}
-                    className="w-7 h-7 flex items-center justify-center border text-sm font-bold hover:bg-gray-50 transition-colors"
-                    style={{ borderColor: "#03033f33", color: "#03033f" }}
+                    onClick={() => removeItem(item.productId)}
+                    className="text-xs tracking-widest uppercase font-bold hover:opacity-50 transition-opacity shrink-0"
+                    style={{ color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}
                   >
-                    −
-                  </button>
-                  <span className="w-8 text-center text-sm font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
-                    {item.quantity}
-                  </span>
-                  <button
-                    onClick={() => updateQty(item.productId, item.quantity + 1)}
-                    className="w-7 h-7 flex items-center justify-center border text-sm font-bold hover:bg-gray-50 transition-colors"
-                    style={{ borderColor: "#03033f33", color: "#03033f" }}
-                  >
-                    +
+                    Remove
                   </button>
                 </div>
-
-                {/* Remove */}
-                <button
-                  onClick={() => removeItem(item.productId)}
-                  className="text-xs tracking-widest uppercase font-bold hover:opacity-50 transition-opacity shrink-0"
-                  style={{ color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Pricing note */}
-          <div
-            className="px-5 py-4 text-sm leading-relaxed"
-            style={{ backgroundColor: "#f8f8fb", border: "1px solid #03033f0d", color: "#03033f99" }}
-          >
-            <strong style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Pricing: </strong>
-            Prices are confirmed after order review. Wholesale accounts receive custom rates based on volume. Retail customers will receive pricing via email.
-          </div>
+          {/* Estimated total */}
+          {hasAnyPrice && (
+            <div
+              className="flex items-center justify-between px-5 py-4"
+              style={{ backgroundColor: "#f8f8fb", border: "1px solid #03033f0d" }}
+            >
+              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
+                Est. Total
+              </span>
+              <span className="text-lg font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                ~${fmt(estimatedTotal)}
+              </span>
+            </div>
+          )}
+
+          {/* Disclaimer */}
+          <p className="text-xs leading-relaxed" style={{ color: "#03033f55" }}>
+            * Estimated weights and prices are not exact quotes. Actual case weights vary. Final pricing is confirmed after order review.
+          </p>
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4">

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
 
 const navLinks = [
@@ -11,7 +12,89 @@ const navLinks = [
   { label: "Contact", href: "/contact" },
 ];
 
-export default function Navigation() {
+const adminMenuItems = [
+  { label: "Dashboard", href: "/admin" },
+  { label: "Prices", href: "/admin/prices" },
+];
+
+function AdminMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  async function signOut() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    router.push("/");
+    router.refresh();
+  }
+
+  return (
+    <div ref={ref} className="relative flex items-center">
+      {/* Profile icon — goes to /admin */}
+      <Link
+        href="/admin"
+        className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/10 transition-colors"
+        aria-label="Admin dashboard"
+        title="Admin dashboard"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-white/80">
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+        </svg>
+      </Link>
+
+      {/* Chevron — toggles dropdown */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center justify-center w-5 h-8 hover:text-white transition-colors"
+        aria-label="Admin menu"
+        style={{ color: "rgba(255,255,255,0.6)" }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-2 w-44 py-1 z-50"
+          style={{ backgroundColor: "#03033f", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}
+        >
+          {adminMenuItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2.5 text-xs font-bold tracking-widest uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+              style={{ fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              {item.label}
+            </Link>
+          ))}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} className="my-1" />
+          <button
+            onClick={signOut}
+            className="w-full text-left px-4 py-2.5 text-xs font-bold tracking-widest uppercase text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+            style={{ fontFamily: "var(--font-brand), sans-serif" }}
+          >
+            Sign Out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Navigation({ isAdmin }: { isAdmin?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { itemCount } = useCart();
 
@@ -55,13 +138,17 @@ export default function Navigation() {
 
         {/* Desktop CTAs */}
         <div className="hidden md:flex items-center gap-5">
-          <Link
-            href="/login"
-            className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase transition-colors duration-200"
-            style={{ fontFamily: "var(--font-brand), sans-serif" }}
-          >
-            Sign In
-          </Link>
+          {isAdmin ? (
+            <AdminMenu />
+          ) : (
+            <Link
+              href="/login"
+              className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase transition-colors duration-200"
+              style={{ fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              Sign In
+            </Link>
+          )}
 
           {/* Cart icon */}
           <Link href="/cart" className="relative text-white/75 hover:text-white transition-colors duration-200" aria-label="Cart">
@@ -143,14 +230,30 @@ export default function Navigation() {
             </Link>
           ))}
           <hr style={{ borderColor: "rgba(255,255,255,0.1)" }} />
-          <Link
-            href="/login"
-            className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase"
-            style={{ fontFamily: "var(--font-brand), sans-serif" }}
-            onClick={() => setMobileOpen(false)}
-          >
-            Sign In
-          </Link>
+          {isAdmin ? (
+            <>
+              {adminMenuItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase"
+                  style={{ fontFamily: "var(--font-brand), sans-serif" }}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase"
+              style={{ fontFamily: "var(--font-brand), sans-serif" }}
+              onClick={() => setMobileOpen(false)}
+            >
+              Sign In
+            </Link>
+          )}
           <Link
             href="/order"
             className="bg-white text-sm font-bold tracking-widest uppercase px-6 py-3 text-center hover:bg-white/90 transition-colors"

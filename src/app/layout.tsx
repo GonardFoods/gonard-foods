@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Josefin_Sans } from "next/font/google";
+import { getIronSession } from "iron-session";
+import { cookies } from "next/headers";
+import { sessionOptions, type AdminSession } from "@/lib/session";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -17,16 +20,19 @@ export const metadata: Metadata = {
     "Gonard Foods supplies premium quality meats to Calgary's restaurants, businesses, and the public. Wholesale and retail delivery across Calgary, Greater Calgary, and Edmonton.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getIronSession<AdminSession>(await cookies(), sessionOptions);
+  const isAdmin = session.isAdmin === true;
+
   return (
     <html lang="en" className={`${brandFont.variable} h-full`}>
       <body className="min-h-full flex flex-col" style={{ fontFamily: "var(--font-brand), sans-serif" }}>
         <CartProvider>
-          <Navigation />
+          <Navigation isAdmin={isAdmin} />
           <main className="flex-1">{children}</main>
           <Footer />
         </CartProvider>
