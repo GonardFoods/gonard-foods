@@ -39,8 +39,17 @@ export async function POST(req: Request) {
 
     return Response.json({ url: blob.url });
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Surface a clear action when the blob store is private-only
+    const isStorePrivate = msg.includes("private store") || msg.includes("private access");
     return Response.json(
-      { error: e instanceof Error ? e.message : String(e) },
+      {
+        error: isStorePrivate
+          ? "Your Vercel Blob store is set to private-only. " +
+            "Create a new public Blob store in the Vercel dashboard (Storage → Create → Blob → Public access), " +
+            "connect it to this project, and redeploy."
+          : msg,
+      },
       { status: 500 }
     );
   }
