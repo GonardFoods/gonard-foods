@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { upload } from "@vercel/blob/client";
-import { CATEGORY_LABELS, getProductPhotos, type Category, type FreshFrozen, type Product } from "@/data/products";
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  CATEGORY_LABELS,
+  getProductPhotos,
+  type Category,
+  type FreshFrozen,
+  type PhotoEntry,
+  type Product,
+} from "@/data/products";
 
 const CATEGORIES = Object.entries(CATEGORY_LABELS) as [Category, string][];
 
@@ -26,7 +32,7 @@ function slugify(str: string) {
   return str.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
 
-const EMPTY_DRAFT: Partial<Product> = {
+const EMPTY_DRAFT: Partial<Product> & { photos: PhotoEntry[] } = {
   name: "",
   itemNo: "",
   category: "chicken",
@@ -52,6 +58,169 @@ const inputStyle = {
   backgroundColor: "#fff",
 };
 
+// ── Focal Point Picker ────────────────────────────────────────────────────────
+function FocalPointPicker({
+  photo,
+  onSave,
+  onClose,
+}: {
+  photo: PhotoEntry;
+  onSave: (x: number, y: number) => void;
+  onClose: () => void;
+}) {
+  const [x, setX] = useState(photo.x ?? 50);
+  const [y, setY] = useState(photo.y ?? 50);
+  const [dragging, setDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  function updateFromEvent(e: React.MouseEvent | MouseEvent) {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const nx = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    const ny = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    setX(Math.round(nx));
+    setY(Math.round(ny));
+  }
+
+  const onMouseMove = useCallback(
+    (e: MouseEvent) => { if (dragging) updateFromEvent(e); },
+    [dragging] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const onMouseUp = useCallback(() => setDragging(false), []);
+
+  useEffect(() => {
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [onMouseMove, onMouseUp]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+    >
+      <div
+        className="bg-white flex flex-col gap-5 p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3
+              className="text-sm font-bold tracking-[0.15em] uppercase"
+              style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              Set Crop Focal Point
+            </h3>
+            <p className="text-xs mt-1" style={{ color: "#03033f66" }}>
+              Click or drag on the image to set what stays centred when cropped.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-xl leading-none ml-4 transition-opacity hover:opacity-60"
+            style={{ color: "#03033f" }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Full image with crosshair */}
+        <div
+          ref={containerRef}
+          className="relative select-none overflow-hidden"
+          style={{ cursor: "crosshair", border: "1px solid #03033f14" }}
+          onMouseDown={(e) => { setDragging(true); updateFromEvent(e); }}
+          onClick={(e) => updateFromEvent(e)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo.url} alt="" className="w-full h-auto pointer-events-none" draggable={false} />
+          {/* Crosshair */}
+          <div
+            className="absolute pointer-events-none"
+            style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)" }}
+          >
+            <div
+              className="w-6 h-6 rounded-full border-2 border-white"
+              style={{ backgroundColor: "rgba(255,255,255,0.25)", boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.4)" }}
+            />
+            {/* Hair lines */}
+            <div className="absolute left-1/2 -translate-x-px top-full mt-1 w-px h-4 bg-white/70" />
+            <div className="absolute left-1/2 -translate-x-px bottom-full mb-1 w-px h-4 bg-white/70" />
+            <div className="absolute top-1/2 -translate-y-px right-full mr-1 h-px w-4 bg-white/70" />
+            <div className="absolute top-1/2 -translate-y-px left-full ml-1 h-px w-4 bg-white/70" />
+          </div>
+        </div>
+
+        {/* Live previews */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <p
+              className="text-xs font-bold tracking-widest uppercase"
+              style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              Catalog (16:9)
+            </p>
+            <div className="aspect-video overflow-hidden" style={{ border: "1px solid #03033f14" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.url}
+                alt=""
+                className="w-full h-full object-cover"
+                style={{ objectPosition: `${x}% ${y}%` }}
+                draggable={false}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <p
+              className="text-xs font-bold tracking-widest uppercase"
+              style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              Product page (1:1)
+            </p>
+            <div className="aspect-square overflow-hidden" style={{ border: "1px solid #03033f14" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.url}
+                alt=""
+                className="w-full h-full object-cover"
+                style={{ objectPosition: `${x}% ${y}%` }}
+                draggable={false}
+              />
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-center" style={{ color: "#03033f55" }}>
+          Focal point: {x}% / {y}%
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => onSave(x, y)}
+            className="flex-1 py-2.5 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-90"
+            style={{ backgroundColor: "#03033f", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}
+          >
+            Apply
+          </button>
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-70"
+            style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,13 +228,15 @@ export default function AdminProducts() {
   const [catFilter, setCatFilter] = useState<"all" | Category>("all");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<"add" | "edit">("add");
-  const [draft, setDraft] = useState<Partial<Product>>({ ...EMPTY_DRAFT });
+  const [draft, setDraft] = useState<Partial<Product> & { photos: PhotoEntry[] }>({ ...EMPTY_DRAFT });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadStage, setUploadStage] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [photoUrlInput, setPhotoUrlInput] = useState("");
+  const [focalPickerIdx, setFocalPickerIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -86,6 +257,7 @@ export default function AdminProducts() {
     setError(null);
     setUploadError(null);
     setPhotoUrlInput("");
+    setFocalPickerIdx(null);
     setDrawerOpen(true);
   }
 
@@ -95,11 +267,13 @@ export default function AdminProducts() {
     setError(null);
     setUploadError(null);
     setPhotoUrlInput("");
+    setFocalPickerIdx(null);
     setDrawerOpen(true);
   }
 
   function closeDrawer() {
     setDrawerOpen(false);
+    setFocalPickerIdx(null);
     setError(null);
     setUploadError(null);
   }
@@ -109,7 +283,7 @@ export default function AdminProducts() {
   }
 
   // ── Photo helpers ──────────────────────────────────────────────────────────
-  const photos = draft.photos ?? [];
+  const photos = draft.photos;
 
   function movePhoto(i: number, dir: -1 | 1) {
     const next = [...photos];
@@ -120,29 +294,71 @@ export default function AdminProducts() {
   }
 
   function removePhoto(i: number) {
-    setDraft((d) => ({ ...d, photos: (d.photos ?? []).filter((_, idx) => idx !== i) }));
+    setDraft((d) => ({ ...d, photos: d.photos.filter((_, idx) => idx !== i) }));
   }
 
   function addPhotoUrl(url: string) {
     const trimmed = url.trim();
     if (!trimmed) return;
-    setDraft((d) => ({ ...d, photos: [...(d.photos ?? []), trimmed] }));
+    setDraft((d) => ({ ...d, photos: [...d.photos, { url: trimmed }] }));
     setPhotoUrlInput("");
   }
 
+  function updateFocalPoint(i: number, x: number, y: number) {
+    setDraft((d) => {
+      const next = [...d.photos];
+      next[i] = { ...next[i], x, y };
+      return { ...d, photos: next };
+    });
+    setFocalPickerIdx(null);
+  }
+
   async function handlePhotoUpload(file: File) {
+    // Client-side size guard — Vercel Hobby plan caps request bodies at 4.5 MB.
+    // Files beyond that must be compressed first (TinyPNG, Squoosh, etc.).
+    const MB = 1024 * 1024;
+    if (file.size > 4.5 * MB) {
+      setUploadError(
+        `File is ${(file.size / MB).toFixed(1)} MB. Please compress it to under 4.5 MB ` +
+        `using a tool like squoosh.app or tinypng.com, then try again.`
+      );
+      return;
+    }
+
     setUploading(true);
     setUploadError(null);
+    setUploadStage("Uploading…");
+
+    // Abort after 30 seconds — surfacing an error is always better than spinning forever
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 30_000);
+
     try {
-      // upload() goes directly from browser → Vercel Blob, bypassing Next.js body size limits
-      const blob = await upload(file.name, file, {
-        access: "public",
-        handleUploadUrl: "/api/admin/upload",
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        headers: {
+          "content-type": file.type || "application/octet-stream",
+          "x-filename": encodeURIComponent(file.name),
+        },
+        body: file,
+        signal: ac.signal,
       });
-      setDraft((d) => ({ ...d, photos: [...(d.photos ?? []), blob.url] }));
-    } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "Upload failed — check file type and try again.");
+
+      const data = await res.json().catch(() => ({})) as { url?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Server error ${res.status}`);
+      if (!data.url) throw new Error("Server returned no URL");
+
+      setDraft((d) => ({ ...d, photos: [...d.photos, { url: data.url! }] }));
+    } catch (e: unknown) {
+      const name = (e as { name?: string })?.name;
+      if (name === "AbortError") {
+        setUploadError("Upload timed out after 30 s. Check your connection and try again.");
+      } else {
+        setUploadError(e instanceof Error ? e.message : "Upload failed — check file type and try again.");
+      }
     } finally {
+      clearTimeout(timer);
+      setUploadStage("");
       setUploading(false);
     }
   }
@@ -159,7 +375,7 @@ export default function AdminProducts() {
       const payload = {
         ...draft,
         freshFrozen: (draft.freshFrozen as FreshFrozen) || null,
-        photos: draft.photos ?? [],
+        photos: draft.photos,
         photoUrl: null,
       };
 
@@ -172,7 +388,7 @@ export default function AdminProducts() {
         });
         if (!res.ok) {
           const b = await res.json().catch(() => ({}));
-          setError(b.error ?? "Failed to add product.");
+          setError((b as { error?: string }).error ?? "Failed to add product.");
           return;
         }
       } else {
@@ -183,7 +399,7 @@ export default function AdminProducts() {
         });
         if (!res.ok) {
           const b = await res.json().catch(() => ({}));
-          setError(b.error ?? "Failed to save.");
+          setError((b as { error?: string }).error ?? "Failed to save.");
           return;
         }
       }
@@ -306,7 +522,12 @@ export default function AdminProducts() {
                       >
                         {productPhotos.length > 0 ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={productPhotos[0]} alt="" className="w-full h-full object-cover absolute inset-0" />
+                          <img
+                            src={productPhotos[0].url}
+                            alt=""
+                            className="w-full h-full object-cover absolute inset-0"
+                            style={{ objectPosition: `${productPhotos[0].x ?? 50}% ${productPhotos[0].y ?? 50}%` }}
+                          />
                         ) : (
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[p.category] + "66" }} />
                         )}
@@ -455,18 +676,31 @@ export default function AdminProducts() {
                 {/* Photo list */}
                 {photos.length > 0 && (
                   <div className="flex flex-col gap-2">
-                    {photos.map((url, i) => (
-                      <div key={`${url}-${i}`} className="flex items-center gap-2 p-2" style={{ border: "1px solid #03033f0d", backgroundColor: "#f8f8fb" }}>
-                        {/* Thumbnail */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt="" className="w-16 h-12 object-cover flex-shrink-0" style={{ border: "1px solid #03033f14" }} />
+                    {photos.map((photo, i) => (
+                      <div key={`${photo.url}-${i}`} className="flex items-center gap-2 p-2" style={{ border: "1px solid #03033f0d", backgroundColor: "#f8f8fb" }}>
+                        {/* Thumbnail with focal point applied */}
+                        <div className="w-16 h-12 overflow-hidden flex-shrink-0 relative" style={{ border: "1px solid #03033f14" }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={photo.url}
+                            alt=""
+                            className="w-full h-full object-cover absolute inset-0"
+                            style={{ objectPosition: `${photo.x ?? 50}% ${photo.y ?? 50}%` }}
+                          />
+                        </div>
 
-                        {/* Label */}
-                        <div className="flex-1 min-w-0">
+                        {/* Label + crop button */}
+                        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                           <p className="text-xs font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                             {i === 0 ? "Main photo" : `Photo ${i + 1}`}
                           </p>
-                          <p className="text-xs truncate mt-0.5" style={{ color: "#03033f44" }}>{url.split("/").pop()}</p>
+                          <button
+                            onClick={() => setFocalPickerIdx(i)}
+                            className="text-xs text-left transition-opacity hover:opacity-70 w-fit"
+                            style={{ color: "#0284c7", fontFamily: "var(--font-brand), sans-serif" }}
+                          >
+                            {photo.x !== undefined ? `Crop: ${photo.x}% / ${photo.y}%` : "Set crop focal point"}
+                          </button>
                         </div>
 
                         {/* Order controls */}
@@ -513,10 +747,10 @@ export default function AdminProducts() {
                   className="w-full px-4 py-3 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40"
                   style={{ border: "1px dashed #03033f44", color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}
                 >
-                  {uploading ? "Uploading…" : photos.length > 0 ? "+ Add Another Photo" : "Upload Photo"}
+                  {uploading ? (uploadStage || "Uploading…") : photos.length > 0 ? "+ Add Another Photo" : "Upload Photo"}
                 </button>
 
-                {/* Upload error — shown right below button */}
+                {/* Upload error */}
                 {uploadError && (
                   <div className="px-3 py-2 text-xs leading-relaxed" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
                     {uploadError}
@@ -578,6 +812,15 @@ export default function AdminProducts() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Focal Point Picker overlay ─────────────────────────────────── */}
+      {focalPickerIdx !== null && photos[focalPickerIdx] && (
+        <FocalPointPicker
+          photo={photos[focalPickerIdx]}
+          onSave={(x, y) => updateFocalPoint(focalPickerIdx, x, y)}
+          onClose={() => setFocalPickerIdx(null)}
+        />
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { put } from "@vercel/blob";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions, type AdminSession } from "@/lib/session";
@@ -19,34 +19,29 @@ export async function GET() {
   }
 }
 
-// POST: client-side upload token generation + completion callback
-// The browser calls this to get a short-lived token, then uploads directly to Vercel Blob.
-// This bypasses Next.js body size limits — the file never passes through the server.
+// POST: accept the raw image body (Content-Type: image/*, X-Filename header)
+// and upload directly to Vercel Blob server-side, bypassing any client-side SDK.
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as HandleUploadBody;
+    if (!(await isAdmin())) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const jsonResponse = await handleUpload({
-      body,
-      request: req,
-      onBeforeGenerateToken: async () => {
-        // Auth check — only admins can request an upload token
-        if (!(await isAdmin())) throw new Error("Unauthorized");
-        return {
-          allowedContentTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"],
-          maximumSizeInBytes: 50 * 1024 * 1024, // 50 MB
-        };
-      },
-      onUploadCompleted: async () => {
-        // No server-side action needed; the client already has the URL
-      },
+    const contentType = req.headers.get("content-type") ?? "application/octet-stream";
+    const rawName = req.headers.get("x-filename") ?? `upload-${Date.now()}`;
+    const safeFilename = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+    const pathname = `products/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeFilename}`;
+
+    if (!req.body) return Response.json({ error: "No file body received" }, { status: 400 });
+
+    const blob = await put(pathname, req.body, {
+      access: "public",
+      contentType,
     });
 
-    return Response.json(jsonResponse);
+    return Response.json({ url: blob.url });
   } catch (e) {
     return Response.json(
       { error: e instanceof Error ? e.message : String(e) },
-      { status: 400 }
+      { status: 500 }
     );
   }
 }

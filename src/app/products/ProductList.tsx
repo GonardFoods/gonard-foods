@@ -199,7 +199,12 @@ export default function ProductList({ products }: { products: Product[] }) {
                       >
                         {firstPhoto ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={firstPhoto} alt={product.name} className="w-full h-full object-cover absolute inset-0" />
+                          <img
+                            src={firstPhoto.url}
+                            alt={product.name}
+                            className="w-full h-full object-cover absolute inset-0"
+                            style={{ objectPosition: `${firstPhoto.x ?? 50}% ${firstPhoto.y ?? 50}%` }}
+                          />
                         ) : (
                           <span className="text-xs tracking-widest uppercase" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
                             Photo Coming Soon

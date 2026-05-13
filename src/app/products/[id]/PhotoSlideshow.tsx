@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import type { PhotoEntry } from "@/data/products";
 
 interface Props {
-  photos: string[];
+  photos: PhotoEntry[];
   alt: string;
   accentColor: string;
 }
@@ -34,6 +35,7 @@ export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
 
   const prev = () => setIdx((i) => (i - 1 + photos.length) % photos.length);
   const next = () => setIdx((i) => (i + 1) % photos.length);
+  const current = photos[idx];
 
   return (
     <div
@@ -46,9 +48,10 @@ export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
       {/* Photo */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={photos[idx]}
+        src={current.url}
         alt={`${alt} — photo ${idx + 1}`}
         className="w-full h-full object-cover"
+        style={{ objectPosition: `${current.x ?? 50}% ${current.y ?? 50}%` }}
       />
 
       {/* Navigation — only shown when more than one photo */}

@@ -1,6 +1,12 @@
 export type Category = "chicken" | "beef" | "lamb" | "goat" | "turkey-duck" | "seafood";
 export type FreshFrozen = "fresh" | "frozen" | "both";
 
+export interface PhotoEntry {
+  url: string;
+  x?: number; // focal point 0–100 (horizontal), default 50
+  y?: number; // focal point 0–100 (vertical), default 50
+}
+
 export interface Product {
   id: string;
   itemNo: string;
@@ -16,13 +22,16 @@ export interface Product {
   marketPrice: number | null;
   salePrice: number | null;
   saleEndDate: string | null;
-  photos?: string[];
+  photos?: PhotoEntry[];
   photoUrl?: string | null; // legacy — superseded by photos[]
 }
 
-export function getProductPhotos(product: Product): string[] {
-  if (product.photos && product.photos.length > 0) return product.photos;
-  if (product.photoUrl) return [product.photoUrl];
+export function getProductPhotos(product: Product): PhotoEntry[] {
+  const raw = product.photos as unknown as (string | PhotoEntry)[] | undefined;
+  if (raw && raw.length > 0) {
+    return raw.map((p) => (typeof p === "string" ? { url: p } : p));
+  }
+  if (product.photoUrl) return [{ url: product.photoUrl }];
   return [];
 }
 
