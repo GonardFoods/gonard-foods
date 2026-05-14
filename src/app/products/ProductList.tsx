@@ -202,8 +202,14 @@ export default function ProductList({ products }: { products: Product[] }) {
                           <img
                             src={firstPhoto.url}
                             alt={product.name}
-                            className="w-full h-full object-cover absolute inset-0"
-                            style={{ objectPosition: `${firstPhoto.x ?? 50}% ${firstPhoto.y ?? 50}%` }}
+                            className="absolute object-cover"
+                            style={{
+                              // Extend 8% beyond the container on each side so overflow:hidden
+                              // clips the edges symmetrically, hiding the bottom-right watermark.
+                              top: 0, bottom: 0, height: "100%",
+                              left: "-8%", width: "116%",
+                              objectPosition: `${firstPhoto.x ?? 50}% ${firstPhoto.y ?? 50}%`,
+                            }}
                           />
                         ) : (
                           <span className="text-xs tracking-widest uppercase" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
