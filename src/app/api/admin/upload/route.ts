@@ -8,12 +8,17 @@ async function isAdmin(): Promise<boolean> {
   return session.isAdmin === true;
 }
 
+// Prefer the public store token; fall back to the default for backwards compat.
+function getBlobToken(): string | undefined {
+  return process.env.PUBLIC_BLOB_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN;
+}
+
 // GET: diagnostic
 export async function GET() {
   try {
     if (!(await isAdmin())) return Response.json({ error: "Unauthorized" }, { status: 401 });
-    const hasToken = !!process.env.BLOB_READ_WRITE_TOKEN;
-    return Response.json({ hasToken, ready: hasToken });
+    const token = getBlobToken();
+    return Response.json({ hasToken: !!token, ready: !!token });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });
   }
@@ -35,6 +40,7 @@ export async function POST(req: Request) {
     const blob = await put(pathname, req.body, {
       access: "public",
       contentType,
+      token: getBlobToken(),
     });
 
     return Response.json({ url: blob.url });
