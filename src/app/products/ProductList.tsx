@@ -202,13 +202,12 @@ export default function ProductList({ products }: { products: Product[] }) {
                           <img
                             src={firstPhoto.url}
                             alt={product.name}
-                            className="absolute object-cover"
+                            className="w-full h-full object-cover absolute inset-0"
                             style={{
-                              // Extend 8% beyond the container on each side so overflow:hidden
-                              // clips the edges symmetrically, hiding the bottom-right watermark.
-                              top: 0, bottom: 0, height: "100%",
-                              left: "-8%", width: "116%",
                               objectPosition: `${firstPhoto.x ?? 50}% ${firstPhoto.y ?? 50}%`,
+                              // Scale up 15% so overflow:hidden clips ~7% from each side,
+                              // pushing a bottom-right watermark (at ~95%) outside the visible area.
+                              transform: "scale(1.15)",
                             }}
                           />
                         ) : (
