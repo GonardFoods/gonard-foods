@@ -11,6 +11,8 @@ interface Props {
 
 export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
   const [idx, setIdx] = useState(0);
+  // Natural image dimensions — loaded via onLoad, used to compute correct transform-origin
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
   if (photos.length === 0) {
     return (
@@ -33,9 +35,38 @@ export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
     );
   }
 
-  const prev = () => setIdx((i) => (i - 1 + photos.length) % photos.length);
-  const next = () => setIdx((i) => (i + 1) % photos.length);
+  function changeIdx(newIdx: number) {
+    setIdx(newIdx);
+    setNaturalSize(null);
+  }
+
+  const prev = () => changeIdx((idx - 1 + photos.length) % photos.length);
+  const next = () => changeIdx((idx + 1) % photos.length);
   const current = photos[idx];
+  const { x, y, z } = getDetailCrop(current);
+
+  // Map focal point in image-space (0-100) to transform-origin in element-space (0-100).
+  // With object-fit:contain in a 1:1 square container, a landscape image fills the width
+  // and has letterbox bars top/bottom. A portrait image fills the height with pillarbox bars
+  // left/right. The bars shift the mapping between image coordinates and element coordinates.
+  function containOrigin(): string {
+    if (!naturalSize) return `${x}% ${y}%`;
+    const imgAspect = naturalSize.w / naturalSize.h;
+    if (imgAspect > 1) {
+      // Landscape: image fills container width, letterbox top+bottom
+      const imgFrac = 1 / imgAspect; // image height as fraction of container height
+      const barFrac = (1 - imgFrac) / 2;
+      const oy = (barFrac + (y / 100) * imgFrac) * 100;
+      return `${x}% ${oy}%`;
+    } else if (imgAspect < 1) {
+      // Portrait: image fills container height, pillarbox left+right
+      const imgFrac = imgAspect; // image width as fraction of container width
+      const barFrac = (1 - imgFrac) / 2;
+      const ox = (barFrac + (x / 100) * imgFrac) * 100;
+      return `${ox}% ${y}%`;
+    }
+    return `${x}% ${y}%`; // square image, no bars
+  }
 
   return (
     <div
@@ -45,23 +76,18 @@ export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
       {/* Accent bar */}
       <div className="absolute top-0 left-0 right-0 h-1 z-10" style={{ backgroundColor: accentColor }} />
 
-      {/* Photo */}
+      {/* Photo — object-contain so the full original image is the baseline; zoom crops in */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {(() => {
-        const { x, y, z } = getDetailCrop(current);
-        return (
-          <img
-            src={current.url}
-            alt={`${alt} — photo ${idx + 1}`}
-            className="w-full h-full object-cover"
-            style={{
-              objectPosition: `${x}% ${y}%`,
-              transform: `scale(${z})`,
-              transformOrigin: `${x}% ${y}%`,
-            }}
-          />
-        );
-      })()}
+      <img
+        src={current.url}
+        alt={`${alt} — photo ${idx + 1}`}
+        className="w-full h-full object-contain"
+        style={{ transform: `scale(${z})`, transformOrigin: containOrigin() }}
+        onLoad={(e) => {
+          const el = e.currentTarget;
+          setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
+        }}
+      />
 
       {/* Navigation — only shown when more than one photo */}
       {photos.length > 1 && (
@@ -88,7 +114,7 @@ export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
             {photos.map((_, i) => (
               <button
                 key={i}
-                onClick={() => setIdx(i)}
+                onClick={() => changeIdx(i)}
                 aria-label={`Photo ${i + 1}`}
                 className="w-1.5 h-1.5 rounded-full transition-opacity"
                 style={{

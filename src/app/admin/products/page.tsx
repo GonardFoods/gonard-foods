@@ -88,9 +88,27 @@ function FocalPointPicker({
     },
   });
   const [dragging, setDragging] = useState(false);
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const cur = settings[activeView];
+
+  // Map focal point in image-space to transform-origin in element-space for object-fit:contain.
+  // containerAspect = containerWidth / containerHeight (e.g. 1 for square, 16/9 for catalog).
+  function containOrigin(fx: number, fy: number, containerAspect: number): string {
+    if (!naturalSize) return `${fx}% ${fy}%`;
+    const imgAspect = naturalSize.w / naturalSize.h;
+    if (imgAspect > containerAspect) {
+      const imgFrac = containerAspect / imgAspect;
+      const barFrac = (1 - imgFrac) / 2;
+      return `${fx}% ${(barFrac + (fy / 100) * imgFrac) * 100}%`;
+    } else if (imgAspect < containerAspect) {
+      const imgFrac = imgAspect / containerAspect;
+      const barFrac = (1 - imgFrac) / 2;
+      return `${(barFrac + (fx / 100) * imgFrac) * 100}% ${fy}%`;
+    }
+    return `${fx}% ${fy}%`;
+  }
 
   function updateFromEvent(e: React.MouseEvent | MouseEvent) {
     if (!containerRef.current) return;
@@ -175,7 +193,16 @@ function FocalPointPicker({
           onClick={(e) => updateFromEvent(e)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photo.url} alt="" className="w-full h-auto pointer-events-none" draggable={false} />
+          <img
+            src={photo.url}
+            alt=""
+            className="w-full h-auto pointer-events-none"
+            draggable={false}
+            onLoad={(e) => {
+              const el = e.currentTarget;
+              setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
+            }}
+          />
           <div
             className="absolute pointer-events-none"
             style={{ left: `${cur.x}%`, top: `${cur.y}%`, transform: "translate(-50%, -50%)" }}
@@ -278,11 +305,10 @@ function FocalPointPicker({
               <img
                 src={photo.url}
                 alt=""
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
                 style={{
-                  objectPosition: `${settings.detail.x}% ${settings.detail.y}%`,
                   transform: `scale(${settings.detail.z})`,
-                  transformOrigin: `${settings.detail.x}% ${settings.detail.y}%`,
+                  transformOrigin: containOrigin(settings.detail.x, settings.detail.y, 1),
                 }}
                 draggable={false}
               />
