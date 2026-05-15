@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import { CATEGORY_LABELS, getProductPhotos, type Category, type FreshFrozen, type Product } from "@/data/products";
+import { CATEGORY_LABELS, getCatalogCrop, getProductPhotos, type Category, type FreshFrozen, type Product } from "@/data/products";
 
 const CATEGORIES: { value: "all" | Category; label: string }[] = [
   { value: "all", label: "All Products" },
@@ -199,16 +199,21 @@ export default function ProductList({ products }: { products: Product[] }) {
                       >
                         {firstPhoto ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={firstPhoto.url}
-                            alt={product.name}
-                            className="w-full h-full object-cover absolute inset-0"
-                            style={{
-                              objectPosition: `${firstPhoto.x ?? 50}% ${firstPhoto.y ?? 50}%`,
-                              transform: `scale(${firstPhoto.z ?? 1})`,
-                              transformOrigin: `${firstPhoto.x ?? 50}% ${firstPhoto.y ?? 50}%`,
-                            }}
-                          />
+                          (() => {
+                            const { x, y, z } = getCatalogCrop(firstPhoto);
+                            return (
+                              <img
+                                src={firstPhoto.url}
+                                alt={product.name}
+                                className="w-full h-full object-cover absolute inset-0"
+                                style={{
+                                  objectPosition: `${x}% ${y}%`,
+                                  transform: `scale(${z})`,
+                                  transformOrigin: `${x}% ${y}%`,
+                                }}
+                              />
+                            );
+                          })()
                         ) : (
                           <span className="text-xs tracking-widest uppercase" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
                             Photo Coming Soon

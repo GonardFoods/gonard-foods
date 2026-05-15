@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PhotoEntry } from "@/data/products";
+import { getDetailCrop, type PhotoEntry } from "@/data/products";
 
 interface Props {
   photos: PhotoEntry[];
@@ -47,16 +47,21 @@ export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
 
       {/* Photo */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={current.url}
-        alt={`${alt} — photo ${idx + 1}`}
-        className="w-full h-full object-cover"
-        style={{
-          objectPosition: `${current.x ?? 50}% ${current.y ?? 50}%`,
-          transform: `scale(${current.z ?? 1})`,
-          transformOrigin: `${current.x ?? 50}% ${current.y ?? 50}%`,
-        }}
-      />
+      {(() => {
+        const { x, y, z } = getDetailCrop(current);
+        return (
+          <img
+            src={current.url}
+            alt={`${alt} — photo ${idx + 1}`}
+            className="w-full h-full object-cover"
+            style={{
+              objectPosition: `${x}% ${y}%`,
+              transform: `scale(${z})`,
+              transformOrigin: `${x}% ${y}%`,
+            }}
+          />
+        );
+      })()}
 
       {/* Navigation — only shown when more than one photo */}
       {photos.length > 1 && (

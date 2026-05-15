@@ -1,11 +1,30 @@
 export type Category = "chicken" | "beef" | "lamb" | "goat" | "turkey-duck" | "seafood";
 export type FreshFrozen = "fresh" | "frozen" | "both";
 
-export interface PhotoEntry {
-  url: string;
+export interface CropSettings {
   x?: number; // focal point 0–100 (horizontal), default 50
   y?: number; // focal point 0–100 (vertical), default 50
   z?: number; // zoom scale, default 1.0; <1 zooms out (white fill), >1 zooms in
+}
+
+export interface PhotoEntry {
+  url: string;
+  catalog?: CropSettings; // 16:9 catalog card crop
+  detail?: CropSettings;  // 1:1 product page crop
+  // Legacy flat fields — used as fallback when catalog/detail not set
+  x?: number;
+  y?: number;
+  z?: number;
+}
+
+export function getCatalogCrop(photo: PhotoEntry): { x: number; y: number; z: number } {
+  const s = photo.catalog;
+  return { x: s?.x ?? photo.x ?? 50, y: s?.y ?? photo.y ?? 50, z: s?.z ?? photo.z ?? 1 };
+}
+
+export function getDetailCrop(photo: PhotoEntry): { x: number; y: number; z: number } {
+  const s = photo.detail;
+  return { x: s?.x ?? photo.x ?? 50, y: s?.y ?? photo.y ?? 50, z: s?.z ?? photo.z ?? 1 };
 }
 
 export interface Product {
