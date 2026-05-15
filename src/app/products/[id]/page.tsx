@@ -91,7 +91,7 @@ export default async function ProductPage({
             <PhotoSlideshow photos={productPhotos} alt={product.name} accentColor={accentColor} />
             {productPhotos.length > 0 && (
               <p className="text-xs text-center" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
-                Product images are for illustrative purposes only and may not represent the actual item.
+                Product images are for illustrative purposes only and may not perfectly represent the actual item.
               </p>
             )}
           </div>
