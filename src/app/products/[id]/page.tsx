@@ -176,10 +176,12 @@ export default async function ProductPage({
 
             <div
               className="px-4 py-3 text-xs leading-relaxed"
-              style={{ backgroundColor: "#f8f8fb", border: "1px solid #03033f0d", color: "#03033f99" }}
+              style={{ backgroundColor: product.availableOnRequest ? "#fefce8" : "#f8f8fb", border: `1px solid ${product.availableOnRequest ? "#fde68a" : "#03033f0d"}`, color: "#03033f99" }}
             >
               <span className="font-bold" style={{ fontFamily: "var(--font-brand), sans-serif" }}>Availability: </span>
-              Contact us to confirm current stock and arrange delivery or pickup.
+              {product.availableOnRequest
+                ? "Available upon request — contact us to inquire about this product."
+                : "Contact us to confirm current stock and arrange delivery or pickup."}
             </div>
 
             <OrderCalculator product={product} />

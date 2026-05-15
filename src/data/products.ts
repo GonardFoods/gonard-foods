@@ -42,6 +42,7 @@ export interface Product {
   marketPrice: number | null;
   salePrice: number | null;
   saleEndDate: string | null;
+  availableOnRequest?: boolean;
   photos?: PhotoEntry[];
   photoUrl?: string | null; // legacy — superseded by photos[]
 }
@@ -461,6 +462,7 @@ export const products: Product[] = [
     marketPrice: null,
     salePrice: null,
     saleEndDate: null,
+    availableOnRequest: true,
   },
 
   // ─── CHICKEN — BREAST ────────────────────────────────────────────────────
@@ -691,6 +693,7 @@ export const products: Product[] = [
     marketPrice: null,
     salePrice: null,
     saleEndDate: null,
+    availableOnRequest: true,
   },
   {
     id: "1005",

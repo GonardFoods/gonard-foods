@@ -236,6 +236,18 @@ export default function ProductList({ products }: { products: Product[] }) {
                       >
                         {CATEGORY_LABELS[product.category]}
                       </span>
+                      {product.availableOnRequest && (
+                        <span
+                          className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase"
+                          style={{
+                            backgroundColor: "#f59e0b18",
+                            color: "#b45309",
+                            fontFamily: "var(--font-brand), sans-serif",
+                          }}
+                        >
+                          Upon Request
+                        </span>
+                      )}
                       {product.halal && (
                         <span
                           className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase"
