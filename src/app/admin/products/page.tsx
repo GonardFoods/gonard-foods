@@ -65,11 +65,12 @@ function FocalPointPicker({
   onClose,
 }: {
   photo: PhotoEntry;
-  onSave: (x: number, y: number) => void;
+  onSave: (x: number, y: number, z: number) => void;
   onClose: () => void;
 }) {
   const [x, setX] = useState(photo.x ?? 50);
   const [y, setY] = useState(photo.y ?? 50);
+  const [z, setZ] = useState(photo.z ?? 1);
   const [dragging, setDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -155,6 +156,42 @@ function FocalPointPicker({
           </div>
         </div>
 
+        {/* Zoom slider */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
+              Zoom
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setZ(1)}
+                className="text-xs px-2 py-0.5 transition-opacity hover:opacity-70"
+                style={{ border: "1px solid #03033f33", color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}
+              >
+                Reset
+              </button>
+              <span className="text-xs font-bold tabular-nums w-12 text-right" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                {z.toFixed(2)}×
+              </span>
+            </div>
+          </div>
+          <input
+            type="range"
+            min="0.5"
+            max="2.5"
+            step="0.01"
+            value={z}
+            onChange={(e) => setZ(parseFloat(e.target.value))}
+            className="w-full"
+            style={{ accentColor: "#03033f" }}
+          />
+          <div className="flex justify-between text-xs" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
+            <span>0.5× out</span>
+            <span>1× normal</span>
+            <span>2.5× in</span>
+          </div>
+        </div>
+
         {/* Live previews */}
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
@@ -164,13 +201,13 @@ function FocalPointPicker({
             >
               Catalog (16:9)
             </p>
-            <div className="aspect-video overflow-hidden" style={{ border: "1px solid #03033f14" }}>
+            <div className="aspect-video overflow-hidden" style={{ border: "1px solid #03033f14", backgroundColor: "#fff" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo.url}
                 alt=""
                 className="w-full h-full object-cover"
-                style={{ objectPosition: `${x}% ${y}%` }}
+                style={{ objectPosition: `${x}% ${y}%`, transform: `scale(${z})`, transformOrigin: `${x}% ${y}%` }}
                 draggable={false}
               />
             </div>
@@ -182,13 +219,13 @@ function FocalPointPicker({
             >
               Product page (1:1)
             </p>
-            <div className="aspect-square overflow-hidden" style={{ border: "1px solid #03033f14" }}>
+            <div className="aspect-square overflow-hidden" style={{ border: "1px solid #03033f14", backgroundColor: "#fff" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo.url}
                 alt=""
                 className="w-full h-full object-cover"
-                style={{ objectPosition: `${x}% ${y}%` }}
+                style={{ objectPosition: `${x}% ${y}%`, transform: `scale(${z})`, transformOrigin: `${x}% ${y}%` }}
                 draggable={false}
               />
             </div>
@@ -196,12 +233,12 @@ function FocalPointPicker({
         </div>
 
         <p className="text-xs text-center" style={{ color: "#03033f55" }}>
-          Focal point: {x}% / {y}%
+          Focal point: {x}% / {y}% · Zoom: {z.toFixed(2)}×
         </p>
 
         <div className="flex gap-3">
           <button
-            onClick={() => onSave(x, y)}
+            onClick={() => onSave(x, y, z)}
             className="flex-1 py-2.5 text-xs font-bold tracking-widest uppercase transition-opacity hover:opacity-90"
             style={{ backgroundColor: "#03033f", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}
           >
@@ -304,10 +341,10 @@ export default function AdminProducts() {
     setPhotoUrlInput("");
   }
 
-  function updateFocalPoint(i: number, x: number, y: number) {
+  function updateFocalPoint(i: number, x: number, y: number, z: number) {
     setDraft((d) => {
       const next = [...d.photos];
-      next[i] = { ...next[i], x, y };
+      next[i] = { ...next[i], x, y, z };
       return { ...d, photos: next };
     });
     setFocalPickerIdx(null);
@@ -678,14 +715,18 @@ export default function AdminProducts() {
                   <div className="flex flex-col gap-2">
                     {photos.map((photo, i) => (
                       <div key={`${photo.url}-${i}`} className="flex items-center gap-2 p-2" style={{ border: "1px solid #03033f0d", backgroundColor: "#f8f8fb" }}>
-                        {/* Thumbnail with focal point applied */}
-                        <div className="w-16 h-12 overflow-hidden flex-shrink-0 relative" style={{ border: "1px solid #03033f14" }}>
+                        {/* Thumbnail with focal point + zoom applied */}
+                        <div className="w-16 h-12 overflow-hidden flex-shrink-0 relative" style={{ border: "1px solid #03033f14", backgroundColor: "#fff" }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={photo.url}
                             alt=""
                             className="w-full h-full object-cover absolute inset-0"
-                            style={{ objectPosition: `${photo.x ?? 50}% ${photo.y ?? 50}%` }}
+                            style={{
+                              objectPosition: `${photo.x ?? 50}% ${photo.y ?? 50}%`,
+                              transform: `scale(${photo.z ?? 1})`,
+                              transformOrigin: `${photo.x ?? 50}% ${photo.y ?? 50}%`,
+                            }}
                           />
                         </div>
 
@@ -699,7 +740,9 @@ export default function AdminProducts() {
                             className="text-xs text-left transition-opacity hover:opacity-70 w-fit"
                             style={{ color: "#0284c7", fontFamily: "var(--font-brand), sans-serif" }}
                           >
-                            {photo.x !== undefined ? `Crop: ${photo.x}% / ${photo.y}%` : "Set crop focal point"}
+                            {photo.x !== undefined
+                              ? `Crop: ${photo.x}% / ${photo.y}%${photo.z !== undefined && photo.z !== 1 ? ` · ${photo.z.toFixed(2)}×` : ""}`
+                              : "Set crop & zoom"}
                           </button>
                         </div>
 
@@ -818,7 +861,7 @@ export default function AdminProducts() {
       {focalPickerIdx !== null && photos[focalPickerIdx] && (
         <FocalPointPicker
           photo={photos[focalPickerIdx]}
-          onSave={(x, y) => updateFocalPoint(focalPickerIdx, x, y)}
+          onSave={(x, y, z) => updateFocalPoint(focalPickerIdx, x, y, z)}
           onClose={() => setFocalPickerIdx(null)}
         />
       )}

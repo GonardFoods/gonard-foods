@@ -195,7 +195,7 @@ export default function ProductList({ products }: { products: Product[] }) {
                     return (
                       <div
                         className="w-full aspect-video relative overflow-hidden flex items-center justify-center"
-                        style={{ backgroundColor: "#f0f0f5" }}
+                        style={{ backgroundColor: "#ffffff" }}
                       >
                         {firstPhoto ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -205,9 +205,8 @@ export default function ProductList({ products }: { products: Product[] }) {
                             className="w-full h-full object-cover absolute inset-0"
                             style={{
                               objectPosition: `${firstPhoto.x ?? 50}% ${firstPhoto.y ?? 50}%`,
-                              // Scale up 15% so overflow:hidden clips ~7% from each side,
-                              // pushing a bottom-right watermark (at ~95%) outside the visible area.
-                              transform: "scale(1.15)",
+                              transform: `scale(${firstPhoto.z ?? 1})`,
+                              transformOrigin: `${firstPhoto.x ?? 50}% ${firstPhoto.y ?? 50}%`,
                             }}
                           />
                         ) : (

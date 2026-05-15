@@ -5,6 +5,7 @@ export interface PhotoEntry {
   url: string;
   x?: number; // focal point 0–100 (horizontal), default 50
   y?: number; // focal point 0–100 (vertical), default 50
+  z?: number; // zoom scale, default 1.0; <1 zooms out (white fill), >1 zooms in
 }
 
 export interface Product {

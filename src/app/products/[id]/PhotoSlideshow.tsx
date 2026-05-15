@@ -40,7 +40,7 @@ export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
   return (
     <div
       className="aspect-square relative overflow-hidden"
-      style={{ border: `1px solid ${accentColor}22` }}
+      style={{ border: `1px solid ${accentColor}22`, backgroundColor: "#fff" }}
     >
       {/* Accent bar */}
       <div className="absolute top-0 left-0 right-0 h-1 z-10" style={{ backgroundColor: accentColor }} />
@@ -51,7 +51,11 @@ export default function PhotoSlideshow({ photos, alt, accentColor }: Props) {
         src={current.url}
         alt={`${alt} — photo ${idx + 1}`}
         className="w-full h-full object-cover"
-        style={{ objectPosition: `${current.x ?? 50}% ${current.y ?? 50}%` }}
+        style={{
+          objectPosition: `${current.x ?? 50}% ${current.y ?? 50}%`,
+          transform: `scale(${current.z ?? 1})`,
+          transformOrigin: `${current.x ?? 50}% ${current.y ?? 50}%`,
+        }}
       />
 
       {/* Navigation — only shown when more than one photo */}
