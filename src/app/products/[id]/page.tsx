@@ -87,7 +87,14 @@ export default async function ProductPage({
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20">
 
           {/* Image slideshow */}
-          <PhotoSlideshow photos={productPhotos} alt={product.name} accentColor={accentColor} />
+          <div className="flex flex-col gap-2">
+            <PhotoSlideshow photos={productPhotos} alt={product.name} accentColor={accentColor} />
+            {productPhotos.length > 0 && (
+              <p className="text-xs text-center" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
+                Product images are for illustrative purposes only and may not represent the actual item.
+              </p>
+            )}
+          </div>
 
           {/* Info */}
           <div className="flex flex-col gap-6">
