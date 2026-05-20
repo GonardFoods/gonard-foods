@@ -253,6 +253,12 @@ export default function CustomerOrders() {
                               <span><strong style={{ color: "#03033f" }}>Email:</strong> <a href={`mailto:${order.customer.email}`} style={{ color: "#0284c7" }}>{order.customer.email}</a></span>
                               {order.customer.phone && <span><strong style={{ color: "#03033f" }}>Phone:</strong> {order.customer.phone}</span>}
                               {order.customer.company && <span><strong style={{ color: "#03033f" }}>Company:</strong> {order.customer.company}</span>}
+                              {order.fulfillment && (
+                                <span>
+                                  <strong style={{ color: "#03033f" }}>Fulfillment:</strong>{" "}
+                                  {order.fulfillment === "delivery" ? `Delivery${order.address ? ` — ${order.address}` : ""}` : "Pick-Up"}
+                                </span>
+                              )}
                               {order.fulfilledAt && <span><strong style={{ color: "#03033f" }}>Delivered:</strong> {fmt(order.fulfilledAt)}</span>}
                               {order.archivedAt && <span><strong style={{ color: "#03033f" }}>Archived:</strong> {fmt(order.archivedAt)}</span>}
                             </div>

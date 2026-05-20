@@ -11,12 +11,26 @@ const inputStyle = {
   outline: "none",
 };
 
+const inputErrorStyle = {
+  ...inputStyle,
+  border: "1px solid #dc2626",
+};
+
+function isValidPhone(value: string): boolean {
+  // Strip all non-digit characters then check for 10–15 digits
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 15;
+}
+
 export default function CheckoutPage() {
   const { items, itemCount, clearCart } = useCart();
   const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState({
     name: "", company: "", email: "", phone: "", notes: "",
+    fulfillment: "" as "" | "pickup" | "delivery",
+    address: "",
   });
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [orderId, setOrderId] = useState("");
@@ -28,8 +42,23 @@ export default function CheckoutPage() {
       setForm((f) => ({ ...f, [key]: e.target.value }));
   }
 
+  function touch(key: string) {
+    return () => setTouched((t) => ({ ...t, [key]: true }));
+  }
+
+  const phoneError   = touched.phone      && !isValidPhone(form.phone);
+  const fulfillError = touched.fulfillment && !form.fulfillment;
+  const addressError = touched.address    && form.fulfillment === "delivery" && !form.address.trim();
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Force-touch all validated fields so errors show on submit
+    setTouched({ phone: true, fulfillment: true, address: true });
+
+    if (!isValidPhone(form.phone)) return;
+    if (!form.fulfillment) return;
+    if (form.fulfillment === "delivery" && !form.address.trim()) return;
+
     setStatus("sending");
     setErrorMsg("");
     try {
@@ -41,8 +70,10 @@ export default function CheckoutPage() {
             name: form.name,
             company: form.company || undefined,
             email: form.email,
-            phone: form.phone || undefined,
+            phone: form.phone,
           },
+          fulfillment: form.fulfillment,
+          address: form.fulfillment === "delivery" ? form.address : undefined,
           items: items.map((i) => ({ productId: i.productId, name: i.name, qty: i.quantity })),
           notes: form.notes || undefined,
         }),
@@ -62,7 +93,6 @@ export default function CheckoutPage() {
     }
   }
 
-  // Don't render cart-dependent content on SSR to avoid hydration mismatch
   if (!mounted) return null;
 
   if (status === "sent") {
@@ -222,6 +252,7 @@ export default function CheckoutPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+              {/* Name */}
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                   Full Name *
@@ -229,6 +260,7 @@ export default function CheckoutPage() {
                 <input type="text" required value={form.name} onChange={set("name")} className="px-4 py-3 text-sm" style={inputStyle} placeholder="Jane Smith" />
               </div>
 
+              {/* Company */}
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                   Company / Business <span style={{ color: "#03033f55" }}>(optional)</span>
@@ -236,6 +268,7 @@ export default function CheckoutPage() {
                 <input type="text" value={form.company} onChange={set("company")} className="px-4 py-3 text-sm" style={inputStyle} placeholder="The Grand Restaurant" />
               </div>
 
+              {/* Email */}
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                   Email *
@@ -243,18 +276,85 @@ export default function CheckoutPage() {
                 <input type="email" required value={form.email} onChange={set("email")} className="px-4 py-3 text-sm" style={inputStyle} placeholder="jane@restaurant.com" />
               </div>
 
+              {/* Phone */}
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
-                  Phone <span style={{ color: "#03033f55" }}>(optional)</span>
+                  Phone *
                 </label>
-                <input type="tel" value={form.phone} onChange={set("phone")} className="px-4 py-3 text-sm" style={inputStyle} placeholder="(403) 555-0100" />
+                <input
+                  type="tel"
+                  required
+                  value={form.phone}
+                  onChange={set("phone")}
+                  onBlur={touch("phone")}
+                  className="px-4 py-3 text-sm"
+                  style={phoneError ? inputErrorStyle : inputStyle}
+                  placeholder="(403) 555-0100"
+                />
+                {phoneError && (
+                  <p className="text-xs" style={{ color: "#dc2626" }}>Please enter a valid phone number.</p>
+                )}
               </div>
 
+              {/* Fulfillment */}
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                  Fulfillment Method *
+                </label>
+                <div className="flex gap-3">
+                  {(["pickup", "delivery"] as const).map((option) => {
+                    const active = form.fulfillment === option;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => { setForm((f) => ({ ...f, fulfillment: option })); setTouched((t) => ({ ...t, fulfillment: true })); }}
+                        className="flex-1 py-3 text-xs font-bold tracking-widest uppercase transition-colors capitalize"
+                        style={{
+                          fontFamily: "var(--font-brand), sans-serif",
+                          backgroundColor: active ? "#03033f" : "transparent",
+                          color: active ? "#fff" : "#03033f99",
+                          border: active ? "1px solid #03033f" : fulfillError ? "1px solid #dc2626" : "1px solid #03033f33",
+                        }}
+                      >
+                        {option === "pickup" ? "Pick-Up" : "Delivery"}
+                      </button>
+                    );
+                  })}
+                </div>
+                {fulfillError && (
+                  <p className="text-xs" style={{ color: "#dc2626" }}>Please select a fulfillment method.</p>
+                )}
+              </div>
+
+              {/* Delivery address — only shown when delivery is selected */}
+              {form.fulfillment === "delivery" && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                    Delivery Address *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={form.address}
+                    onChange={set("address")}
+                    onBlur={touch("address")}
+                    className="px-4 py-3 text-sm"
+                    style={addressError ? inputErrorStyle : inputStyle}
+                    placeholder="123 Main St, Calgary, AB T2P 1J9"
+                  />
+                  {addressError && (
+                    <p className="text-xs" style={{ color: "#dc2626" }}>Please enter a delivery address.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Notes */}
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                   Notes <span style={{ color: "#03033f55" }}>(optional)</span>
                 </label>
-                <textarea rows={3} value={form.notes} onChange={set("notes")} className="px-4 py-3 text-sm resize-none" style={inputStyle} placeholder="Delivery preferences, special requests, etc." />
+                <textarea rows={3} value={form.notes} onChange={set("notes")} className="px-4 py-3 text-sm resize-none" style={inputStyle} placeholder="Special requests, preferred delivery window, etc." />
               </div>
 
               {status === "error" && (

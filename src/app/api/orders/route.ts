@@ -14,20 +14,30 @@ export async function POST(req: Request) {
   try {
     const body = await req.json() as {
       customer?: { name?: string; company?: string; email?: string; phone?: string };
+      fulfillment?: string;
+      address?: string;
       items?: { productId: string; name: string; qty: number }[];
       notes?: string;
     };
 
-    const { customer, items, notes } = body;
+    const { customer, fulfillment, address, items, notes } = body;
 
     if (!customer?.name?.trim() || !customer?.email?.trim()) {
       return Response.json({ error: "Name and email are required." }, { status: 400 });
+    }
+    if (!customer?.phone?.trim()) {
+      return Response.json({ error: "Phone number is required." }, { status: 400 });
+    }
+    if (!fulfillment || !["pickup", "delivery"].includes(fulfillment)) {
+      return Response.json({ error: "Fulfillment method is required." }, { status: 400 });
+    }
+    if (fulfillment === "delivery" && !address?.trim()) {
+      return Response.json({ error: "Delivery address is required." }, { status: 400 });
     }
     if (!items?.length) {
       return Response.json({ error: "Order must contain at least one item." }, { status: 400 });
     }
 
-    // Look up itemNo for each cart item from the product catalogue
     const products = await getAllProducts();
     const productMap = new Map(products.map((p) => [p.id, p]));
 
@@ -45,8 +55,10 @@ export async function POST(req: Request) {
         name: customer.name.trim(),
         company: customer.company?.trim() || undefined,
         email: customer.email.trim(),
-        phone: customer.phone?.trim() || undefined,
+        phone: customer.phone.trim(),
       },
+      fulfillment: fulfillment as "pickup" | "delivery",
+      address: fulfillment === "delivery" ? address!.trim() : undefined,
       items: orderItems,
       notes: notes?.trim() || undefined,
       status: "pending",
@@ -62,6 +74,10 @@ export async function POST(req: Request) {
       .map((i) => `  ${i.itemNo}  ${i.name}  ×${i.qty} cases`)
       .join("\n");
 
+    const fulfillmentLabel = order.fulfillment === "delivery"
+      ? `Delivery — ${esc(order.address!)}`
+      : "Pick-Up";
+
     // Notification to Gonard Foods
     await resend.emails.send({
       from: FROM,
@@ -74,7 +90,8 @@ export async function POST(req: Request) {
         <p style="font-family:sans-serif"><strong>Name:</strong> ${esc(order.customer.name)}</p>
         ${order.customer.company ? `<p style="font-family:sans-serif"><strong>Company:</strong> ${esc(order.customer.company)}</p>` : ""}
         <p style="font-family:sans-serif"><strong>Email:</strong> <a href="mailto:${esc(order.customer.email)}">${esc(order.customer.email)}</a></p>
-        ${order.customer.phone ? `<p style="font-family:sans-serif"><strong>Phone:</strong> ${esc(order.customer.phone)}</p>` : ""}
+        <p style="font-family:sans-serif"><strong>Phone:</strong> ${esc(order.customer.phone!)}</p>
+        <p style="font-family:sans-serif"><strong>Fulfillment:</strong> ${fulfillmentLabel}</p>
         ${order.notes ? `<p style="font-family:sans-serif"><strong>Notes:</strong> ${esc(order.notes)}</p>` : ""}
         <table style="border-collapse:collapse;margin-top:12px;font-family:sans-serif;font-size:14px">
           <thead><tr>
@@ -85,7 +102,7 @@ export async function POST(req: Request) {
           <tbody>${itemRows}</tbody>
         </table>
       `,
-      text: `New Website Order #${order.id}\n\nName: ${order.customer.name}\n${order.customer.company ? `Company: ${order.customer.company}\n` : ""}Email: ${order.customer.email}\n${order.customer.phone ? `Phone: ${order.customer.phone}\n` : ""}${order.notes ? `Notes: ${order.notes}\n` : ""}\nItems:\n${itemText}`,
+      text: `New Website Order #${order.id}\n\nName: ${order.customer.name}\n${order.customer.company ? `Company: ${order.customer.company}\n` : ""}Email: ${order.customer.email}\nPhone: ${order.customer.phone}\nFulfillment: ${order.fulfillment === "delivery" ? `Delivery — ${order.address}` : "Pick-Up"}\n${order.notes ? `Notes: ${order.notes}\n` : ""}\nItems:\n${itemText}`,
     });
 
     // Confirmation to customer
@@ -97,6 +114,7 @@ export async function POST(req: Request) {
         <p style="font-family:sans-serif">Hi ${esc(order.customer.name)},</p>
         <p style="font-family:sans-serif">Thank you for your order inquiry. We have received your request and will be in touch shortly to confirm availability and pricing.</p>
         <p style="font-family:sans-serif"><strong>Order Reference:</strong> #${esc(order.id)}</p>
+        <p style="font-family:sans-serif"><strong>Fulfillment:</strong> ${fulfillmentLabel}</p>
         <table style="border-collapse:collapse;margin-top:12px;font-family:sans-serif;font-size:14px">
           <thead><tr>
             <th style="padding:4px 8px;border:1px solid #e5e7eb;text-align:left">Product</th>
@@ -108,7 +126,7 @@ export async function POST(req: Request) {
         <p style="font-family:sans-serif">If you have any questions, reply to this email or call us at (403) 277-0991.</p>
         <p style="font-family:sans-serif">— Gonard Foods</p>
       `,
-      text: `Hi ${order.customer.name},\n\nThank you for your order inquiry (Ref: #${order.id}). We will be in touch shortly.\n\nItems:\n${itemText}\n\nQuestions? Call (403) 277-0991 or reply to this email.\n\n— Gonard Foods`,
+      text: `Hi ${order.customer.name},\n\nThank you for your order inquiry (Ref: #${order.id}). We will be in touch shortly.\n\nFulfillment: ${order.fulfillment === "delivery" ? `Delivery — ${order.address}` : "Pick-Up"}\n\nItems:\n${itemText}\n\nQuestions? Call (403) 277-0991 or reply to this email.\n\n— Gonard Foods`,
     });
 
     return Response.json({ ok: true, orderId: order.id });

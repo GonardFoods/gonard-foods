@@ -33,6 +33,8 @@ export interface WebOrder {
   id: string;
   createdAt: string; // ISO
   customer: CustomerInfo;
+  fulfillment?: "pickup" | "delivery";
+  address?: string;
   items: OrderItem[];
   notes?: string;
   status: OrderStatus;
