@@ -13,9 +13,12 @@ interface InventoryRow {
   available: number;
 }
 
+type FilterKey = "all" | "available" | "inHouse" | "onTheWay" | "reserved";
+
 export default function AdminInventory() {
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   useEffect(() => {
     setLoading(true);
@@ -26,10 +29,28 @@ export default function AdminInventory() {
       .finally(() => setLoading(false));
   }, []);
 
+  const totalAll       = rows.length;
   const totalAvailable = rows.reduce((s, r) => s + r.available, 0);
   const totalInHouse   = rows.reduce((s, r) => s + r.inHouse, 0);
   const totalOnTheWay  = rows.reduce((s, r) => s + r.onTheWay, 0);
   const totalReserved  = rows.reduce((s, r) => s + r.reserved, 0);
+
+  const cards: { key: FilterKey; label: string; value: number; color: string; bg: string; activeBorder: string }[] = [
+    { key: "all",      label: "All Products", value: totalAll,       color: "#03033f", bg: "#f8f8fb", activeBorder: "#03033f" },
+    { key: "available",label: "Available",    value: totalAvailable, color: "#166534", bg: "#dcfce7", activeBorder: "#16a34a" },
+    { key: "inHouse",  label: "In House",     value: totalInHouse,   color: "#03033f", bg: "#f0f4ff", activeBorder: "#03033f" },
+    { key: "onTheWay", label: "On the Way",   value: totalOnTheWay,  color: "#854d0e", bg: "#fef9c3", activeBorder: "#ca8a04" },
+    { key: "reserved", label: "Reserved",     value: totalReserved,  color: "#7c3aed", bg: "#f5f3ff", activeBorder: "#7c3aed" },
+  ];
+
+  const filtered = rows.filter((r) => {
+    if (filter === "all")      return true;
+    if (filter === "available") return r.available > 0;
+    if (filter === "inHouse")  return r.inHouse > 0;
+    if (filter === "onTheWay") return r.onTheWay > 0;
+    if (filter === "reserved") return r.reserved > 0;
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,19 +62,26 @@ export default function AdminInventory() {
         <div className="w-10 h-0.5 mt-3" style={{ backgroundColor: "#03033f" }} />
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Available",   value: totalAvailable, color: "#166534", bg: "#dcfce7" },
-          { label: "In House",    value: totalInHouse,   color: "#03033f", bg: "#f8f8fb" },
-          { label: "On the Way",  value: totalOnTheWay,  color: "#854d0e", bg: "#fef9c3" },
-          { label: "Reserved",    value: totalReserved,  color: "#7c3aed", bg: "#f5f3ff" },
-        ].map((s) => (
-          <div key={s.label} className="p-5 flex flex-col gap-1" style={{ backgroundColor: s.bg, border: "1px solid rgba(0,0,0,0.06)" }}>
-            <span className="text-3xl font-bold" style={{ color: s.color, fontFamily: "var(--font-brand), sans-serif" }}>{s.value}</span>
-            <span className="text-xs font-bold tracking-widest uppercase" style={{ color: s.color + "aa", fontFamily: "var(--font-brand), sans-serif" }}>{s.label}</span>
-          </div>
-        ))}
+      {/* Summary cards — double as filter buttons */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {cards.map((c) => {
+          const active = filter === c.key;
+          return (
+            <button
+              key={c.key}
+              onClick={() => setFilter(c.key)}
+              className="p-5 flex flex-col gap-1 text-left transition-shadow hover:shadow-md"
+              style={{
+                backgroundColor: c.bg,
+                border: active ? `2px solid ${c.activeBorder}` : "1px solid rgba(0,0,0,0.06)",
+                outline: "none",
+              }}
+            >
+              <span className="text-3xl font-bold" style={{ color: c.color, fontFamily: "var(--font-brand), sans-serif" }}>{c.value}</span>
+              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: c.color + "aa", fontFamily: "var(--font-brand), sans-serif" }}>{c.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <p className="text-xs leading-relaxed" style={{ color: "#03033f55" }}>
@@ -66,9 +94,9 @@ export default function AdminInventory() {
       <div className="bg-white overflow-x-auto">
         {loading ? (
           <div className="p-16 text-center text-xs tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>Loading…</div>
-        ) : rows.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="p-16 text-center text-xs tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
-            No data yet. Add supplier orders to track inventory.
+            {rows.length === 0 ? "No data yet. Add supplier orders to track inventory." : "No products match this filter."}
           </div>
         ) : (
           <table className="w-full text-sm border-collapse">
@@ -82,9 +110,9 @@ export default function AdminInventory() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
-                const isLow  = row.available > 0 && row.available <= 5;
-                const isOut  = row.available === 0 && row.inHouse > 0;
+              {filtered.map((row) => {
+                const isLow = row.available > 0 && row.available <= 5;
+                const isOut = row.available === 0 && row.inHouse > 0;
                 const hasAny = row.inHouse > 0 || row.onTheWay > 0 || row.reserved > 0;
                 return (
                   <tr key={row.itemNo} style={{ borderBottom: "1px solid #03033f08", opacity: hasAny ? 1 : 0.45 }} className="hover:bg-gray-50 transition-colors">
