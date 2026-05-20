@@ -14,7 +14,10 @@ const navLinks = [
 
 const adminMenuItems = [
   { label: "Dashboard", href: "/admin" },
+  { label: "Products", href: "/admin/products" },
   { label: "Prices", href: "/admin/prices" },
+  { label: "Orders", href: "/admin/orders" },
+  { label: "Inventory", href: "/admin/inventory" },
 ];
 
 function AdminMenu() {

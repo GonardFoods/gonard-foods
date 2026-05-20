@@ -25,6 +25,31 @@ const cards = [
       </svg>
     ),
   },
+  {
+    title: "Orders",
+    description: "View and manage customer orders. Fulfill, cancel, or reopen orders and export to CSV.",
+    href: "/admin/orders",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" />
+        <path d="M9 12h6M9 16h4" />
+      </svg>
+    ),
+  },
+  {
+    title: "Inventory",
+    description: "Import Sage 50 CSV exports to track on-hand stock and available cases per product.",
+    href: "/admin/inventory",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
+        <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
+        <line x1="12" y1="12" x2="12" y2="16" />
+        <line x1="10" y1="14" x2="14" y2="14" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminDashboard() {
@@ -62,32 +87,6 @@ export default function AdminDashboard() {
           </Link>
         ))}
 
-        {/* Placeholder cards for future modules */}
-        {["Orders", "Customers", "Reports"].map((name) => (
-          <div
-            key={name}
-            className="bg-white p-7 flex flex-col gap-4 opacity-40 cursor-not-allowed"
-            title="Coming soon"
-          >
-            <div style={{ color: "#03033f" }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M9 9h6M9 12h6M9 15h4" />
-              </svg>
-            </div>
-            <div>
-              <h2
-                className="font-bold tracking-widest uppercase text-sm"
-                style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-              >
-                {name}
-              </h2>
-              <p className="text-xs mt-1" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
-                Coming soon
-              </p>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
