@@ -57,12 +57,12 @@ export async function GET(req: Request) {
     }
   }
 
-  const csv = rows.join("\n");
+  const csv = "﻿" + rows.join("\r\n");
   const filename = `gonard-orders-${statusFilter}-${new Date().toISOString().slice(0, 10)}.csv`;
 
   return new Response(csv, {
     headers: {
-      "Content-Type": "text/csv",
+      "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
