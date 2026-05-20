@@ -4,9 +4,17 @@ import { useState, useEffect } from "react";
 import type { WebOrder, OrderStatus } from "@/lib/orders-store";
 
 const STATUS_COLORS: Record<OrderStatus, { bg: string; text: string }> = {
-  pending: { bg: "#fef9c3", text: "#854d0e" },
+  pending:   { bg: "#fef9c3", text: "#854d0e" },
   fulfilled: { bg: "#dcfce7", text: "#166534" },
   cancelled: { bg: "#fee2e2", text: "#991b1b" },
+  archived:  { bg: "#f1f5f9", text: "#475569" },
+};
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  pending:   "Pending",
+  fulfilled: "Delivered",
+  cancelled: "Cancelled",
+  archived:  "Archived",
 };
 
 function fmt(iso: string) {
@@ -16,10 +24,12 @@ function fmt(iso: string) {
   });
 }
 
-export default function AdminOrders() {
+type FilterKey = OrderStatus | "all";
+
+export default function CustomerOrders() {
   const [orders, setOrders] = useState<WebOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("pending");
+  const [statusFilter, setStatusFilter] = useState<FilterKey>("pending");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
 
@@ -56,12 +66,14 @@ export default function AdminOrders() {
     window.location.href = `/api/admin/orders/export?status=${status}`;
   }
 
-  const filtered = orders.filter((o) =>
-    statusFilter === "all" ? true : o.status === statusFilter
-  );
+  // "all" tab shows everything except archived; "archived" tab shows only archived
+  const filtered = orders.filter((o) => {
+    if (statusFilter === "all") return o.status !== "archived";
+    return o.status === statusFilter;
+  });
 
   const pendingCount = orders.filter((o) => o.status === "pending").length;
-  const fulfilledToday = orders.filter((o) => {
+  const deliveredToday = orders.filter((o) => {
     if (o.status !== "fulfilled" || !o.fulfilledAt) return false;
     return new Date(o.fulfilledAt).toDateString() === new Date().toDateString();
   }).length;
@@ -72,7 +84,7 @@ export default function AdminOrders() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-[0.1em] uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
-            Orders
+            Customer Orders
           </h1>
           <div className="w-10 h-0.5 mt-3" style={{ backgroundColor: "#03033f" }} />
         </div>
@@ -97,9 +109,9 @@ export default function AdminOrders() {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: "Pending", value: pendingCount, color: "#854d0e", bg: "#fef9c3" },
-          { label: "Fulfilled Today", value: fulfilledToday, color: "#166534", bg: "#dcfce7" },
-          { label: "Total Orders", value: orders.length, color: "#03033f", bg: "#f8f8fb" },
+          { label: "Pending",          value: pendingCount,   color: "#854d0e", bg: "#fef9c3" },
+          { label: "Delivered Today",  value: deliveredToday, color: "#166534", bg: "#dcfce7" },
+          { label: "Total Orders",     value: orders.filter((o) => o.status !== "archived").length, color: "#03033f", bg: "#f8f8fb" },
         ].map((s) => (
           <div key={s.label} className="p-5 flex flex-col gap-1" style={{ backgroundColor: s.bg, border: "1px solid rgba(0,0,0,0.06)" }}>
             <span className="text-3xl font-bold" style={{ color: s.color, fontFamily: "var(--font-brand), sans-serif" }}>{s.value}</span>
@@ -108,10 +120,11 @@ export default function AdminOrders() {
         ))}
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-2">
-        {(["pending", "fulfilled", "cancelled", "all"] as const).map((s) => {
+      {/* Filter tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {(["pending", "fulfilled", "cancelled", "archived", "all"] as const).map((s) => {
           const active = statusFilter === s;
+          const label = s === "fulfilled" ? "Delivered" : s === "all" ? "Active" : s;
           return (
             <button
               key={s}
@@ -124,7 +137,7 @@ export default function AdminOrders() {
                 border: active ? "1px solid #03033f" : "1px solid #03033f33",
               }}
             >
-              {s}
+              {label}
             </button>
           );
         })}
@@ -173,8 +186,8 @@ export default function AdminOrders() {
                         {order.items.length} line{order.items.length !== 1 ? "s" : ""} · {order.items.reduce((s, i) => s + i.qty, 0)} cases
                       </td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase capitalize" style={{ backgroundColor: sc.bg, color: sc.text, fontFamily: "var(--font-brand), sans-serif" }}>
-                          {order.status}
+                        <span className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase" style={{ backgroundColor: sc.bg, color: sc.text, fontFamily: "var(--font-brand), sans-serif" }}>
+                          {STATUS_LABELS[order.status]}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -184,10 +197,10 @@ export default function AdminOrders() {
                               <button
                                 disabled={updating === order.id}
                                 onClick={() => setStatus(order.id, "fulfilled")}
-                                className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40"
+                                className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap"
                                 style={{ backgroundColor: "#16a34a", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}
                               >
-                                Fulfill
+                                Mark Delivered
                               </button>
                               <button
                                 disabled={updating === order.id}
@@ -199,7 +212,27 @@ export default function AdminOrders() {
                               </button>
                             </>
                           )}
-                          {order.status !== "pending" && (
+                          {order.status === "fulfilled" && (
+                            <>
+                              <button
+                                disabled={updating === order.id}
+                                onClick={() => setStatus(order.id, "archived")}
+                                className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40"
+                                style={{ backgroundColor: "#475569", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}
+                              >
+                                Archive
+                              </button>
+                              <button
+                                disabled={updating === order.id}
+                                onClick={() => setStatus(order.id, "pending")}
+                                className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40"
+                                style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}
+                              >
+                                Reopen
+                              </button>
+                            </>
+                          )}
+                          {order.status === "cancelled" && (
                             <button
                               disabled={updating === order.id}
                               onClick={() => setStatus(order.id, "pending")}
@@ -220,6 +253,8 @@ export default function AdminOrders() {
                               <span><strong style={{ color: "#03033f" }}>Email:</strong> <a href={`mailto:${order.customer.email}`} style={{ color: "#0284c7" }}>{order.customer.email}</a></span>
                               {order.customer.phone && <span><strong style={{ color: "#03033f" }}>Phone:</strong> {order.customer.phone}</span>}
                               {order.customer.company && <span><strong style={{ color: "#03033f" }}>Company:</strong> {order.customer.company}</span>}
+                              {order.fulfilledAt && <span><strong style={{ color: "#03033f" }}>Delivered:</strong> {fmt(order.fulfilledAt)}</span>}
+                              {order.archivedAt && <span><strong style={{ color: "#03033f" }}>Archived:</strong> {fmt(order.archivedAt)}</span>}
                             </div>
                             <table className="text-xs border-collapse" style={{ maxWidth: 500 }}>
                               <thead>

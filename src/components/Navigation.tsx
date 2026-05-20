@@ -13,11 +13,12 @@ const navLinks = [
 ];
 
 const adminMenuItems = [
-  { label: "Dashboard", href: "/admin" },
-  { label: "Products", href: "/admin/products" },
-  { label: "Prices", href: "/admin/prices" },
-  { label: "Orders", href: "/admin/orders" },
-  { label: "Inventory", href: "/admin/inventory" },
+  { label: "Dashboard",       href: "/admin" },
+  { label: "Products",        href: "/admin/products" },
+  { label: "Prices",          href: "/admin/prices" },
+  { label: "Supplier Orders", href: "/admin/supplier-orders" },
+  { label: "Customer Orders", href: "/admin/orders" },
+  { label: "Inventory",       href: "/admin/inventory" },
 ];
 
 function AdminMenu() {

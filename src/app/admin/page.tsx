@@ -26,8 +26,21 @@ const cards = [
     ),
   },
   {
-    title: "Orders",
-    description: "View and manage customer orders. Fulfill, cancel, or reopen orders and export to CSV.",
+    title: "Supplier Orders",
+    description: "Track orders placed with suppliers — skids, boxes, pricing, and delivery status.",
+    href: "/admin/supplier-orders",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="3" width="15" height="13" rx="1" />
+        <path d="M16 8h4l3 3v5h-7V8z" />
+        <circle cx="5.5" cy="18.5" r="2.5" />
+        <circle cx="18.5" cy="18.5" r="2.5" />
+      </svg>
+    ),
+  },
+  {
+    title: "Customer Orders",
+    description: "View and manage customer orders. Mark delivered, archive once posted to Sage.",
     href: "/admin/orders",
     icon: (
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -39,7 +52,7 @@ const cards = [
   },
   {
     title: "Inventory",
-    description: "Import Sage 50 CSV exports to track on-hand stock and available cases per product.",
+    description: "Live stock levels per product — in house, on the way, reserved, and available.",
     href: "/admin/inventory",
     icon: (
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -86,7 +99,6 @@ export default function AdminDashboard() {
             </div>
           </Link>
         ))}
-
       </div>
     </div>
   );

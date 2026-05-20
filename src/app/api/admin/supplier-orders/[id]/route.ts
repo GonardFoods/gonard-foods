@@ -1,7 +1,7 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions, type AdminSession } from "@/lib/session";
-import { updateOrder, type OrderStatus } from "@/lib/orders-store";
+import { updateSupplierOrder, type SupplierOrderStatus } from "@/lib/supplier-orders-store";
 
 async function isAdmin() {
   const session = await getIronSession<AdminSession>(await cookies(), sessionOptions);
@@ -14,15 +14,13 @@ export async function PUT(
 ) {
   if (!(await isAdmin())) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const { status } = await req.json() as { status?: OrderStatus };
-  if (!status || !["pending", "fulfilled", "cancelled", "archived"].includes(status)) {
+  const { status } = await req.json() as { status?: SupplierOrderStatus };
+  if (!status || !["incoming", "received", "cancelled"].includes(status)) {
     return Response.json({ error: "Invalid status." }, { status: 400 });
   }
-  const now = new Date().toISOString();
-  const patch: { status: OrderStatus; fulfilledAt?: string; archivedAt?: string } = { status };
-  if (status === "fulfilled") patch.fulfilledAt = now;
-  if (status === "archived") patch.archivedAt = now;
-  const updated = await updateOrder(id, patch);
+  const patch: { status: SupplierOrderStatus; receivedAt?: string } = { status };
+  if (status === "received") patch.receivedAt = new Date().toISOString();
+  const updated = await updateSupplierOrder(id, patch);
   if (!updated) return Response.json({ error: "Order not found." }, { status: 404 });
   return Response.json(updated);
 }

@@ -1,8 +1,8 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions, type AdminSession } from "@/lib/session";
-import { getInventory } from "@/lib/inventory-store";
-import { getOrders, pendingByItemNo } from "@/lib/orders-store";
+import { getSupplierOrders, incomingByItemNo, receivedByItemNo } from "@/lib/supplier-orders-store";
+import { getOrders } from "@/lib/orders-store";
 import { getAllProducts } from "@/lib/products-store";
 
 async function isAdmin() {
@@ -13,35 +13,58 @@ async function isAdmin() {
 export async function GET() {
   if (!(await isAdmin())) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [inventory, orders, products] = await Promise.all([
-    getInventory(),
+  const [supplierOrders, customerOrders, products] = await Promise.all([
+    getSupplierOrders(),
     getOrders(),
     getAllProducts(),
   ]);
 
-  const pending = pendingByItemNo(orders);
+  const incoming = incomingByItemNo(supplierOrders);
+  const received = receivedByItemNo(supplierOrders);
 
-  // Build a combined view: all products that have a stock level set,
-  // plus any itemNos in pending orders that aren't yet in inventory.
+  // Boxes shipped out to customers (fulfilled or archived orders)
+  const shipped: Record<string, number> = {};
+  for (const order of customerOrders) {
+    if (order.status !== "fulfilled" && order.status !== "archived") continue;
+    for (const item of order.items) {
+      shipped[item.itemNo] = (shipped[item.itemNo] ?? 0) + item.qty;
+    }
+  }
+
+  // Boxes committed to pending customer orders
+  const reserved: Record<string, number> = {};
+  for (const order of customerOrders) {
+    if (order.status !== "pending") continue;
+    for (const item of order.items) {
+      reserved[item.itemNo] = (reserved[item.itemNo] ?? 0) + item.qty;
+    }
+  }
+
   const allItemNos = new Set([
-    ...Object.keys(inventory),
-    ...Object.keys(pending),
+    ...products.map((p) => p.itemNo),
+    ...Object.keys(incoming),
+    ...Object.keys(received),
+    ...Object.keys(reserved),
+    ...Object.keys(shipped),
   ]);
 
   const productByItemNo = new Map(products.map((p) => [p.itemNo, p]));
 
   const rows = Array.from(allItemNos).map((itemNo) => {
-    const stock = inventory[itemNo];
     const product = productByItemNo.get(itemNo);
+    const inHouse = Math.max(0, (received[itemNo] ?? 0) - (shipped[itemNo] ?? 0));
+    const onTheWay = incoming[itemNo] ?? 0;
+    const res = reserved[itemNo] ?? 0;
+    const available = Math.max(0, inHouse - res);
     return {
       itemNo,
       productId: product?.id ?? null,
       name: product?.name ?? `Item ${itemNo}`,
       category: product?.category ?? null,
-      onHand: stock?.onHand ?? null,
-      updatedAt: stock?.updatedAt ?? null,
-      pendingCases: pending[itemNo] ?? 0,
-      available: stock != null ? Math.max(0, stock.onHand - (pending[itemNo] ?? 0)) : null,
+      inHouse,
+      onTheWay,
+      reserved: res,
+      available,
     };
   });
 
@@ -50,10 +73,5 @@ export async function GET() {
     return a.name.localeCompare(b.name);
   });
 
-  return Response.json({
-    rows,
-    lastImportAt: Object.values(inventory).sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt)
-    )[0]?.updatedAt ?? null,
-  });
+  return Response.json({ rows });
 }

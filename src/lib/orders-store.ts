@@ -27,7 +27,7 @@ export interface CustomerInfo {
   phone?: string;
 }
 
-export type OrderStatus = "pending" | "fulfilled" | "cancelled";
+export type OrderStatus = "pending" | "fulfilled" | "cancelled" | "archived";
 
 export interface WebOrder {
   id: string;
@@ -37,6 +37,7 @@ export interface WebOrder {
   notes?: string;
   status: OrderStatus;
   fulfilledAt?: string;
+  archivedAt?: string;
 }
 
 export async function getOrders(): Promise<WebOrder[]> {
