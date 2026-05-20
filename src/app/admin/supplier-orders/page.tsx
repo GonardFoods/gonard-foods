@@ -463,7 +463,7 @@ export default function SupplierOrdersPage() {
                             <table className="text-xs border-collapse" style={{ maxWidth: 640 }}>
                               <thead>
                                 <tr style={{ borderBottom: "1px solid #03033f14" }}>
-                                  {["Product", "Skids", "Boxes", "Price / Box", "Total"].map((h) => (
+                                  {["Product", "Item No", "Skids", "Boxes", "Price / Box", "Total"].map((h) => (
                                     <th key={h} className="py-1 pr-6 text-left font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>{h}</th>
                                   ))}
                                 </tr>
@@ -472,6 +472,7 @@ export default function SupplierOrdersPage() {
                                 {order.items.map((item, i) => (
                                   <tr key={i} style={{ borderBottom: "1px solid #03033f08" }}>
                                     <td className="py-1.5 pr-6 font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{item.name}</td>
+                                    <td className="py-1.5 pr-6" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>{item.itemNo}</td>
                                     <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.skids}</td>
                                     <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.boxes}</td>
                                     <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.pricePerUnit > 0 ? `$${fmtMoney(item.pricePerUnit)}` : "—"}</td>
