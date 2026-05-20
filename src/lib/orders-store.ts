@@ -32,6 +32,7 @@ export type OrderStatus = "pending" | "fulfilled" | "cancelled" | "archived";
 export interface WebOrder {
   id: string;
   createdAt: string; // ISO
+  customerId?: string; // links to a Customer profile if one exists
   customer: CustomerInfo;
   fulfillment?: "pickup" | "delivery";
   address?: string;

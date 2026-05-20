@@ -51,6 +51,19 @@ const cards = [
     ),
   },
   {
+    title: "Customers",
+    description: "Manage customer profiles, outstanding balances, and account access.",
+    href: "/admin/customers",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="7" r="4" />
+        <path d="M2 21c0-4 3.1-7 7-7" />
+        <circle cx="17" cy="11" r="3" />
+        <path d="M14 21c0-2.5 1.3-4 3-4s3 1.5 3 4" />
+      </svg>
+    ),
+  },
+  {
     title: "Inventory",
     description: "Live stock levels per product — in house, on the way, reserved, and available.",
     href: "/admin/inventory",

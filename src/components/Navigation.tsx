@@ -18,6 +18,7 @@ const adminMenuItems = [
   { label: "Prices",          href: "/admin/prices" },
   { label: "Supplier Orders", href: "/admin/supplier-orders" },
   { label: "Customer Orders", href: "/admin/orders" },
+  { label: "Customers",       href: "/admin/customers" },
   { label: "Inventory",       href: "/admin/inventory" },
 ];
 
@@ -98,7 +99,69 @@ function AdminMenu() {
   );
 }
 
-export default function Navigation({ isAdmin }: { isAdmin?: boolean }) {
+function CustomerMenu({ name }: { name: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  async function signOut() {
+    await fetch("/api/customer/logout", { method: "POST" });
+    router.push("/");
+    router.refresh();
+  }
+
+  return (
+    <div ref={ref} className="relative flex items-center">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 text-white/75 hover:text-white text-xs font-bold tracking-widest uppercase transition-colors"
+        style={{ fontFamily: "var(--font-brand), sans-serif" }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+        </svg>
+        {name}
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-2 w-44 py-1 z-50"
+          style={{ backgroundColor: "#03033f", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}
+        >
+          <Link
+            href="/account"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-xs font-bold tracking-widest uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+            style={{ fontFamily: "var(--font-brand), sans-serif" }}
+          >
+            My Account
+          </Link>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} className="my-1" />
+          <button
+            onClick={signOut}
+            className="w-full text-left px-4 py-2.5 text-xs font-bold tracking-widest uppercase text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+            style={{ fontFamily: "var(--font-brand), sans-serif" }}
+          >
+            Sign Out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Navigation({ isAdmin, customer }: { isAdmin?: boolean; customer?: { name: string; email: string } | null }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { itemCount } = useCart();
 
@@ -144,14 +207,25 @@ export default function Navigation({ isAdmin }: { isAdmin?: boolean }) {
         <div className="hidden md:flex items-center gap-5">
           {isAdmin ? (
             <AdminMenu />
+          ) : customer ? (
+            <CustomerMenu name={customer.name} />
           ) : (
-            <Link
-              href="/login"
-              className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase transition-colors duration-200"
-              style={{ fontFamily: "var(--font-brand), sans-serif" }}
-            >
-              Sign In
-            </Link>
+            <div className="flex items-center gap-5">
+              <Link
+                href="/account/login"
+                className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase transition-colors duration-200"
+                style={{ fontFamily: "var(--font-brand), sans-serif" }}
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/account/signup"
+                className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase transition-colors duration-200"
+                style={{ fontFamily: "var(--font-brand), sans-serif" }}
+              >
+                Sign Up
+              </Link>
+            </div>
           )}
 
           {/* Cart icon */}
@@ -248,15 +322,28 @@ export default function Navigation({ isAdmin }: { isAdmin?: boolean }) {
                 </Link>
               ))}
             </>
+          ) : customer ? (
+            <>
+              <Link href="/account" className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
+                My Account
+              </Link>
+              <button
+                onClick={async () => { await fetch("/api/customer/logout", { method: "POST" }); window.location.href = "/"; }}
+                className="text-left text-white/50 hover:text-white text-sm font-bold tracking-widest uppercase"
+                style={{ fontFamily: "var(--font-brand), sans-serif" }}
+              >
+                Sign Out
+              </button>
+            </>
           ) : (
-            <Link
-              href="/login"
-              className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase"
-              style={{ fontFamily: "var(--font-brand), sans-serif" }}
-              onClick={() => setMobileOpen(false)}
-            >
-              Sign In
-            </Link>
+            <>
+              <Link href="/account/login" className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
+                Sign In
+              </Link>
+              <Link href="/account/signup" className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
+                Sign Up
+              </Link>
+            </>
           )}
           <Link
             href="/products"

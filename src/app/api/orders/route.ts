@@ -1,6 +1,9 @@
 import { Resend } from "resend";
+import { getIronSession } from "iron-session";
+import { cookies } from "next/headers";
 import { saveOrder, type WebOrder, type OrderItem } from "@/lib/orders-store";
 import { getAllProducts } from "@/lib/products-store";
+import { customerSessionOptions, type CustomerSession } from "@/lib/customer-session";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = "Gonard Foods Website <noreply@gonardfoods.com>";
@@ -38,6 +41,10 @@ export async function POST(req: Request) {
       return Response.json({ error: "Order must contain at least one item." }, { status: 400 });
     }
 
+    // Attach customerId if a customer is logged in
+    const customerSession = await getIronSession<CustomerSession>(await cookies(), customerSessionOptions);
+    const customerId = customerSession.customerId || undefined;
+
     const products = await getAllProducts();
     const productMap = new Map(products.map((p) => [p.id, p]));
 
@@ -51,6 +58,7 @@ export async function POST(req: Request) {
     const order: WebOrder = {
       id: Date.now().toString(),
       createdAt: new Date().toISOString(),
+      customerId,
       customer: {
         name: customer.name.trim(),
         company: customer.company?.trim() || undefined,
