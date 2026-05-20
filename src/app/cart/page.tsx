@@ -197,11 +197,11 @@ export default function CartPage() {
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4">
             <Link
-              href="/contact"
+              href="/checkout"
               className="flex-1 text-center px-8 py-4 font-bold text-sm tracking-widest uppercase hover:opacity-90 transition-opacity"
               style={{ backgroundColor: "#03033f", color: "#ffffff", fontFamily: "var(--font-brand), sans-serif" }}
             >
-              Send Order Inquiry
+              Proceed to Checkout
             </Link>
             <Link
               href="/products"
