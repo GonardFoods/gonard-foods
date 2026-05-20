@@ -29,14 +29,15 @@ export default function AdminInventory() {
       .finally(() => setLoading(false));
   }, []);
 
-  const totalAll       = rows.length;
   const totalAvailable = rows.reduce((s, r) => s + r.available, 0);
   const totalInHouse   = rows.reduce((s, r) => s + r.inHouse, 0);
   const totalOnTheWay  = rows.reduce((s, r) => s + r.onTheWay, 0);
   const totalReserved  = rows.reduce((s, r) => s + r.reserved, 0);
+  // All = total physical boxes (in house + on the way); reserved/available are subsets, not additive
+  const totalAll       = totalInHouse + totalOnTheWay;
 
   const cards: { key: FilterKey; label: string; value: number; color: string; bg: string; activeBorder: string }[] = [
-    { key: "all",      label: "All Products", value: totalAll,       color: "#03033f", bg: "#f8f8fb", activeBorder: "#03033f" },
+    { key: "all",      label: "All",        value: totalAll,       color: "#03033f", bg: "#f8f8fb", activeBorder: "#03033f" },
     { key: "available",label: "Available",    value: totalAvailable, color: "#166534", bg: "#dcfce7", activeBorder: "#16a34a" },
     { key: "inHouse",  label: "In House",     value: totalInHouse,   color: "#03033f", bg: "#f0f4ff", activeBorder: "#03033f" },
     { key: "onTheWay", label: "On the Way",   value: totalOnTheWay,  color: "#854d0e", bg: "#fef9c3", activeBorder: "#ca8a04" },
