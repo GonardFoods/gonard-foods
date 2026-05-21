@@ -18,7 +18,7 @@ async function getKV() {
 
 export async function getProductPriceData(productId: string): Promise<PriceData> {
   const kv = await getKV();
-  if (!kv) return { pricePerUnit: null, caseWeight: null };
+  if (!kv) return { pricePerUnit: null, caseWeight: null, pricingType: "per_weight" };
   try {
     const raw = await kv.hgetall(`product:${productId}`);
     if (!raw) return { pricePerUnit: null, caseWeight: null, pricingType: "per_weight" };
