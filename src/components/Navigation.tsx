@@ -210,7 +210,7 @@ export default function Navigation({ isAdmin, customer }: { isAdmin?: boolean; c
           ) : customer ? (
             <CustomerMenu name={customer.name} />
           ) : (
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-4">
               <Link
                 href="/account/login"
                 className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase transition-colors duration-200"
@@ -220,8 +220,8 @@ export default function Navigation({ isAdmin, customer }: { isAdmin?: boolean; c
               </Link>
               <Link
                 href="/account/signup"
-                className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase transition-colors duration-200"
-                style={{ fontFamily: "var(--font-brand), sans-serif" }}
+                className="px-4 py-2 text-sm font-bold tracking-widest uppercase hover:bg-white/90 transition-colors duration-200"
+                style={{ backgroundColor: "#ffffff", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
               >
                 Sign Up
               </Link>
@@ -252,6 +252,15 @@ export default function Navigation({ isAdmin, customer }: { isAdmin?: boolean; c
           >
             Order Now
           </Link>
+          {!isAdmin && !customer && (
+            <Link
+              href="/login"
+              className="text-white/25 hover:text-white/50 text-xs tracking-widest uppercase transition-colors duration-200"
+              style={{ fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              Admin
+            </Link>
+          )}
         </div>
 
         {/* Mobile right side */}
@@ -340,8 +349,11 @@ export default function Navigation({ isAdmin, customer }: { isAdmin?: boolean; c
               <Link href="/account/login" className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
                 Sign In
               </Link>
-              <Link href="/account/signup" className="text-white/75 hover:text-white text-sm font-bold tracking-widest uppercase" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
+              <Link href="/account/signup" className="self-start px-4 py-2 text-sm font-bold tracking-widest uppercase hover:bg-white/90 transition-colors" style={{ backgroundColor: "#fff", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
                 Sign Up
+              </Link>
+              <Link href="/login" className="text-white/25 hover:text-white/50 text-xs tracking-widest uppercase transition-colors" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
+                Admin
               </Link>
             </>
           )}

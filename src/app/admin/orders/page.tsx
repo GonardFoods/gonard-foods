@@ -74,14 +74,14 @@ function FinalizeModal({
 }) {
   const productMap = new Map(products.map((p) => [p.id, p]));
 
-  // Per line item: array of box weights (strings for input), fireSale toggle, custom price
+  // Per line item: total weight (string for input), fireSale toggle, custom price
   const [lines, setLines] = useState(() =>
     order.items.map((item) => {
       const p = productMap.get(item.productId);
       return {
         item,
         product: p,
-        boxWeights: Array(item.qty).fill("") as string[],
+        totalWeight: "",
         fireSale: false,
         customPrice: p?.pricePerUnit != null ? String(p.pricePerUnit) : "",
       };
@@ -90,13 +90,8 @@ function FinalizeModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  function setBoxWeight(lineIdx: number, boxIdx: number, val: string) {
-    setLines((prev) => prev.map((l, i) => {
-      if (i !== lineIdx) return l;
-      const bw = [...l.boxWeights];
-      bw[boxIdx] = val;
-      return { ...l, boxWeights: bw };
-    }));
+  function setTotalWeight(lineIdx: number, val: string) {
+    setLines((prev) => prev.map((l, i) => i === lineIdx ? { ...l, totalWeight: val } : l));
   }
 
   function toggleFireSale(lineIdx: number) {
@@ -115,9 +110,9 @@ function FinalizeModal({
     if (p.pricingType === "per_box") {
       return price * line.item.qty;
     }
-    const totalWeight = line.boxWeights.reduce((s, w) => s + (Number(w) || 0), 0);
-    if (totalWeight <= 0) return null;
-    return price * totalWeight;
+    const w = Number(line.totalWeight);
+    if (!w || w <= 0) return null;
+    return price * w;
   }
 
   const orderTotal = lines.every((l) => lineTotal(l) !== null)
@@ -136,11 +131,9 @@ function FinalizeModal({
         return;
       }
       if (p.pricingType === "per_weight") {
-        for (let i = 0; i < line.item.qty; i++) {
-          if (!line.boxWeights[i] || Number(line.boxWeights[i]) <= 0) {
-            setError(`Enter weight for all boxes of ${line.item.name} (box ${i + 1} missing).`);
-            return;
-          }
+        if (!line.totalWeight || Number(line.totalWeight) <= 0) {
+          setError(`Enter total weight for ${line.item.name}.`);
+          return;
         }
       }
     }
@@ -150,13 +143,12 @@ function FinalizeModal({
     const updatedItems: OrderItem[] = lines.map((line) => {
       const p = line.product;
       const price = Number(line.customPrice);
-      const bw = line.boxWeights.map(Number);
       const tot = lineTotal(line) ?? 0;
       return {
         ...line.item,
         pricingType: p?.pricingType,
         weightUnit: p?.weightUnit,
-        boxWeights: p?.pricingType === "per_weight" ? bw : undefined,
+        totalWeight: p?.pricingType === "per_weight" ? Number(line.totalWeight) : undefined,
         pricePerUnit: price,
         lineTotal: tot,
       };
@@ -211,28 +203,24 @@ function FinalizeModal({
                   )}
                 </div>
 
-                {/* Box weights for per_weight products */}
+                {/* Total weight for per_weight products */}
                 {!isPerBox && (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
-                      Box Weights ({p?.weightUnit ?? "KG"})
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {line.boxWeights.map((w, boxIdx) => (
-                        <div key={boxIdx} className="flex items-center gap-1">
-                          <span className="text-xs" style={{ color: "#03033f55" }}>#{boxIdx + 1}</span>
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={w}
-                            onChange={(e) => setBoxWeight(lineIdx, boxIdx, e.target.value)}
-                            className="w-20 px-2 py-1.5 text-xs text-right"
-                            style={inputStyle}
-                            placeholder="0.00"
-                          />
-                        </div>
-                      ))}
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
+                      Total Weight ({p?.weightUnit ?? "KG"})
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={line.totalWeight}
+                        onChange={(e) => setTotalWeight(lineIdx, e.target.value)}
+                        className="w-28 px-2 py-1.5 text-xs text-right"
+                        style={inputStyle}
+                        placeholder="0.00"
+                      />
+                      <span className="text-xs" style={{ color: "#03033f55" }}>{p?.weightUnit ?? "kg"}</span>
                     </div>
                   </div>
                 )}
@@ -783,7 +771,7 @@ export default function CustomerOrders() {
                                     <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.name}</td>
                                     <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.qty}</td>
                                     <td className="py-1.5 pr-6 text-xs" style={{ color: "#03033f66" }}>
-                                      {item.boxWeights ? item.boxWeights.map((w, i) => `#${i + 1}: ${w} ${item.weightUnit ?? ""}`).join(", ") : "—"}
+                                      {item.totalWeight != null ? `${item.totalWeight} ${item.weightUnit ?? ""}` : "—"}
                                     </td>
                                     <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>
                                       {item.pricePerUnit != null ? `$${item.pricePerUnit}/${item.pricingType === "per_box" ? "box" : (item.weightUnit ?? "kg").toLowerCase()}` : "—"}

@@ -20,7 +20,7 @@ export interface OrderItem {
   qty: number; // cases
   pricingType?: "per_weight" | "per_box";
   weightUnit?: "KG" | "LB";
-  boxWeights?: number[]; // individual box weights in kg/lb, length === qty
+  totalWeight?: number; // total weight in kg/lb for per_weight products
   pricePerUnit?: number; // $/kg, $/lb, or $/box (fire-sale override or standard)
   lineTotal?: number; // computed at finalization
 }
