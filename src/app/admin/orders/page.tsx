@@ -348,7 +348,7 @@ export default function CustomerOrders() {
   }
 
   const filtered = orders.filter((o) => {
-    if (statusFilter === "all") return o.status !== "archived";
+    if (statusFilter === "all") return o.status === "pending" || o.status === "fulfilled";
     return o.status === statusFilter;
   });
 
@@ -388,7 +388,7 @@ export default function CustomerOrders() {
         {[
           { label: "Pending",         value: pendingCount,   color: "#854d0e", bg: "#fef9c3" },
           { label: "Delivered Today", value: deliveredToday, color: "#166534", bg: "#dcfce7" },
-          { label: "Total Active",    value: orders.filter((o) => o.status !== "archived").length, color: "#03033f", bg: "#f8f8fb" },
+          { label: "Total Active",    value: orders.filter((o) => o.status === "pending" || o.status === "fulfilled").length, color: "#03033f", bg: "#f8f8fb" },
         ].map((s) => (
           <div key={s.label} className="p-5 flex flex-col gap-1" style={{ backgroundColor: s.bg, border: "1px solid rgba(0,0,0,0.06)" }}>
             <span className="text-3xl font-bold" style={{ color: s.color, fontFamily: "var(--font-brand), sans-serif" }}>{s.value}</span>
