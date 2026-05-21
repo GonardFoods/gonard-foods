@@ -1,12 +1,20 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { WebOrder, OrderStatus } from "@/lib/orders-store";
+import type { WebOrder, OrderStatus, OrderItem } from "@/lib/orders-store";
 import type { PublicCustomer } from "@/lib/customers-store";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface ProductOption { id: string; name: string; itemNo: string; category: string | null; }
+interface ProductOption {
+  id: string;
+  name: string;
+  itemNo: string;
+  category: string | null;
+  pricingType: "per_weight" | "per_box";
+  weightUnit: "KG" | "LB";
+  pricePerUnit: number | null;
+}
 
 interface OrderItemRow { productId: string; qty: string; }
 
@@ -14,6 +22,7 @@ interface OrderItemRow { productId: string; qty: string; }
 
 const STATUS_COLORS: Record<OrderStatus, { bg: string; text: string }> = {
   pending:   { bg: "#fef9c3", text: "#854d0e" },
+  invoiced:  { bg: "#dbeafe", text: "#1e40af" },
   fulfilled: { bg: "#dcfce7", text: "#166534" },
   cancelled: { bg: "#fee2e2", text: "#991b1b" },
   archived:  { bg: "#f1f5f9", text: "#475569" },
@@ -21,6 +30,7 @@ const STATUS_COLORS: Record<OrderStatus, { bg: string; text: string }> = {
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending:   "Pending",
+  invoiced:  "Invoiced",
   fulfilled: "Delivered",
   cancelled: "Cancelled",
   archived:  "Archived",
@@ -43,6 +53,257 @@ function fmt(iso: string) {
     month: "short", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit", hour12: true,
   });
+}
+
+function fmtMoney(n: number) {
+  return "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ─── Finalize Modal ──────────────────────────────────────────────────────────
+
+function FinalizeModal({
+  order,
+  products,
+  onFinalized,
+  onClose,
+}: {
+  order: WebOrder;
+  products: ProductOption[];
+  onFinalized: (updated: WebOrder) => void;
+  onClose: () => void;
+}) {
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
+  // Per line item: array of box weights (strings for input), fireSale toggle, custom price
+  const [lines, setLines] = useState(() =>
+    order.items.map((item) => {
+      const p = productMap.get(item.productId);
+      return {
+        item,
+        product: p,
+        boxWeights: Array(item.qty).fill("") as string[],
+        fireSale: false,
+        customPrice: p?.pricePerUnit != null ? String(p.pricePerUnit) : "",
+      };
+    })
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  function setBoxWeight(lineIdx: number, boxIdx: number, val: string) {
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== lineIdx) return l;
+      const bw = [...l.boxWeights];
+      bw[boxIdx] = val;
+      return { ...l, boxWeights: bw };
+    }));
+  }
+
+  function toggleFireSale(lineIdx: number) {
+    setLines((prev) => prev.map((l, i) => i === lineIdx ? { ...l, fireSale: !l.fireSale } : l));
+  }
+
+  function setCustomPrice(lineIdx: number, val: string) {
+    setLines((prev) => prev.map((l, i) => i === lineIdx ? { ...l, customPrice: val } : l));
+  }
+
+  function lineTotal(line: typeof lines[0]): number | null {
+    const price = Number(line.customPrice);
+    if (!price || price <= 0) return null;
+    const p = line.product;
+    if (!p) return null;
+    if (p.pricingType === "per_box") {
+      return price * line.item.qty;
+    }
+    const totalWeight = line.boxWeights.reduce((s, w) => s + (Number(w) || 0), 0);
+    if (totalWeight <= 0) return null;
+    return price * totalWeight;
+  }
+
+  const orderTotal = lines.every((l) => lineTotal(l) !== null)
+    ? lines.reduce((s, l) => s + (lineTotal(l) ?? 0), 0)
+    : null;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    for (const line of lines) {
+      const p = line.product;
+      if (!p) continue;
+      if (!line.customPrice || Number(line.customPrice) <= 0) {
+        setError(`Missing price for ${line.item.name}.`);
+        return;
+      }
+      if (p.pricingType === "per_weight") {
+        for (let i = 0; i < line.item.qty; i++) {
+          if (!line.boxWeights[i] || Number(line.boxWeights[i]) <= 0) {
+            setError(`Enter weight for all boxes of ${line.item.name} (box ${i + 1} missing).`);
+            return;
+          }
+        }
+      }
+    }
+
+    if (orderTotal === null) { setError("Could not compute total."); return; }
+
+    const updatedItems: OrderItem[] = lines.map((line) => {
+      const p = line.product;
+      const price = Number(line.customPrice);
+      const bw = line.boxWeights.map(Number);
+      const tot = lineTotal(line) ?? 0;
+      return {
+        ...line.item,
+        pricingType: p?.pricingType,
+        weightUnit: p?.weightUnit,
+        boxWeights: p?.pricingType === "per_weight" ? bw : undefined,
+        pricePerUnit: price,
+        lineTotal: tot,
+      };
+    });
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "invoiced", items: updatedItems, invoiceTotal: orderTotal }),
+      });
+      if (!res.ok) { const d = await res.json(); setError(d.error ?? "Failed."); return; }
+      onFinalized(await res.json());
+    } catch {
+      setError("Network error.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #03033f14" }}>
+          <h2 className="text-sm font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+            Finalize Order #{order.id.slice(-6)}
+          </h2>
+          <button onClick={onClose} className="text-lg hover:opacity-50" style={{ color: "#03033f66" }}>✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
+          {lines.map((line, lineIdx) => {
+            const p = line.product;
+            const isPerBox = p?.pricingType === "per_box";
+            const tot = lineTotal(line);
+            return (
+              <div key={line.item.productId} className="flex flex-col gap-3 pb-6" style={{ borderBottom: "1px solid #03033f08" }}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {line.item.name}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: "#03033f55" }}>
+                      {line.item.qty} {line.item.qty === 1 ? "box" : "boxes"}{isPerBox ? " · flat rate/box" : ` · charged by ${p?.weightUnit ?? "weight"}`}
+                    </p>
+                  </div>
+                  {tot !== null && (
+                    <span className="text-sm font-bold whitespace-nowrap" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {fmtMoney(tot)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Box weights for per_weight products */}
+                {!isPerBox && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
+                      Box Weights ({p?.weightUnit ?? "KG"})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {line.boxWeights.map((w, boxIdx) => (
+                        <div key={boxIdx} className="flex items-center gap-1">
+                          <span className="text-xs" style={{ color: "#03033f55" }}>#{boxIdx + 1}</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={w}
+                            onChange={(e) => setBoxWeight(lineIdx, boxIdx, e.target.value)}
+                            className="w-20 px-2 py-1.5 text-xs text-right"
+                            style={inputStyle}
+                            placeholder="0.00"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Price row */}
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {line.fireSale ? "Fire-Sale Price" : "Price"} (${isPerBox ? "/box" : `/${p?.weightUnit ?? "kg"}`})
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs" style={{ color: "#03033f55" }}>$</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={line.customPrice}
+                        onChange={(e) => setCustomPrice(lineIdx, e.target.value)}
+                        className="w-24 px-2 py-1.5 text-xs text-right"
+                        style={{ ...inputStyle, borderColor: line.fireSale ? "#dc2626" : "#03033f33" }}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleFireSale(lineIdx)}
+                    className="text-xs font-bold tracking-widest uppercase px-2 py-1.5 transition-colors"
+                    style={{
+                      fontFamily: "var(--font-brand), sans-serif",
+                      color: line.fireSale ? "#fff" : "#dc2626",
+                      backgroundColor: line.fireSale ? "#dc2626" : "transparent",
+                      border: "1px solid #dc262644",
+                    }}
+                  >
+                    🔥 Fire-Sale
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Order total */}
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-sm font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Order Total</span>
+            <span className="text-xl font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+              {orderTotal !== null ? fmtMoney(orderTotal) : "—"}
+            </span>
+          </div>
+
+          {error && (
+            <div className="px-4 py-3 text-xs" style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>{error}</div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={submitting || orderTotal === null}
+              className="px-6 py-2.5 text-xs font-bold tracking-widest uppercase hover:opacity-80 disabled:opacity-40"
+              style={{ backgroundColor: "#03033f", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              {submitting ? "Saving…" : "Create Invoice"}
+            </button>
+            <button type="button" onClick={onClose} className="px-6 py-2.5 text-xs font-bold tracking-widest uppercase hover:opacity-60" style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 // ─── Customer Combobox ───────────────────────────────────────────────────────
@@ -183,8 +444,7 @@ function NewOrderForm({
         }),
       });
       if (!res.ok) { const d = await res.json(); setError(d.error ?? "Failed to create order."); return; }
-      const created: WebOrder = await res.json();
-      onCreated(created);
+      onCreated(await res.json());
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -196,15 +456,13 @@ function NewOrderForm({
     <form onSubmit={handleSubmit} className="bg-white p-6 flex flex-col gap-5" style={{ border: "1px solid #03033f14" }}>
       <h2 className="text-sm font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>New Customer Order</h2>
 
-      {/* Customer */}
       <div className="flex flex-col gap-2">
         <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Customer</label>
         <CustomerCombobox customers={customers} selected={selectedCustomer} onSelect={setSelectedCustomer} />
       </div>
 
-      {/* Manual fields when no customer selected */}
       {!selectedCustomer && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-0 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           {[
             { key: "name", label: "Name *", value: manualName, set: setManualName, required: true, placeholder: "Jane Smith" },
             { key: "company", label: "Company (optional)", value: manualCompany, set: setManualCompany, required: false, placeholder: "The Grand Restaurant" },
@@ -219,7 +477,6 @@ function NewOrderForm({
         </div>
       )}
 
-      {/* Products */}
       <div className="flex flex-col gap-2">
         <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Products</label>
         <div className="overflow-x-auto">
@@ -258,7 +515,6 @@ function NewOrderForm({
         </button>
       </div>
 
-      {/* Fulfillment */}
       <div className="flex flex-col gap-2">
         <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Fulfillment *</label>
         <div className="flex gap-3">
@@ -276,7 +532,6 @@ function NewOrderForm({
         )}
       </div>
 
-      {/* Notes */}
       <div className="flex flex-col gap-2">
         <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Notes <span style={{ color: "#03033f55" }}>(optional)</span></label>
         <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="px-3 py-2 text-sm resize-none" style={inputStyle} placeholder="Special instructions, etc." />
@@ -307,6 +562,7 @@ export default function CustomerOrders() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const [finalizing, setFinalizing] = useState<WebOrder | null>(null);
 
   async function load() {
     setLoading(true);
@@ -348,11 +604,12 @@ export default function CustomerOrders() {
   }
 
   const filtered = orders.filter((o) => {
-    if (statusFilter === "all") return o.status === "pending" || o.status === "fulfilled";
+    if (statusFilter === "all") return o.status === "pending" || o.status === "invoiced" || o.status === "fulfilled";
     return o.status === statusFilter;
   });
 
   const pendingCount = orders.filter((o) => o.status === "pending").length;
+  const invoicedCount = orders.filter((o) => o.status === "invoiced").length;
   const deliveredToday = orders.filter((o) => {
     if (o.status !== "fulfilled" || !o.fulfilledAt) return false;
     return new Date(o.fulfilledAt).toDateString() === new Date().toDateString();
@@ -360,6 +617,19 @@ export default function CustomerOrders() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Finalize modal */}
+      {finalizing && (
+        <FinalizeModal
+          order={finalizing}
+          products={products}
+          onFinalized={(updated) => {
+            setOrders((prev) => prev.map((o) => o.id === updated.id ? updated : o));
+            setFinalizing(null);
+          }}
+          onClose={() => setFinalizing(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -387,8 +657,8 @@ export default function CustomerOrders() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: "Pending",         value: pendingCount,   color: "#854d0e", bg: "#fef9c3" },
+          { label: "Invoiced",        value: invoicedCount,  color: "#1e40af", bg: "#dbeafe" },
           { label: "Delivered Today", value: deliveredToday, color: "#166534", bg: "#dcfce7" },
-          { label: "Total Active",    value: orders.filter((o) => o.status === "pending" || o.status === "fulfilled").length, color: "#03033f", bg: "#f8f8fb" },
         ].map((s) => (
           <div key={s.label} className="p-5 flex flex-col gap-1" style={{ backgroundColor: s.bg, border: "1px solid rgba(0,0,0,0.06)" }}>
             <span className="text-3xl font-bold" style={{ color: s.color, fontFamily: "var(--font-brand), sans-serif" }}>{s.value}</span>
@@ -409,7 +679,7 @@ export default function CustomerOrders() {
 
       {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
-        {(["pending", "fulfilled", "cancelled", "archived", "all"] as const).map((s) => {
+        {(["pending", "invoiced", "fulfilled", "cancelled", "archived", "all"] as const).map((s) => {
           const active = statusFilter === s;
           const label = s === "fulfilled" ? "Delivered" : s === "all" ? "Active" : s;
           return (
@@ -430,7 +700,7 @@ export default function CustomerOrders() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ borderBottom: "2px solid #03033f14" }}>
-                {["Order", "Date", "Customer", "Items", "Status", ""].map((h) => (
+                {["Order", "Date", "Customer", "Items", "Total", "Status", ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -451,23 +721,32 @@ export default function CustomerOrders() {
                       <td className="px-4 py-3 text-xs" style={{ color: "#03033f88" }}>
                         {order.items.length} line{order.items.length !== 1 ? "s" : ""} · {order.items.reduce((s, i) => s + i.qty, 0)} cases
                       </td>
+                      <td className="px-4 py-3 text-xs font-bold" style={{ color: "#03033f" }}>
+                        {order.invoiceTotal != null ? fmtMoney(order.invoiceTotal) : <span style={{ color: "#03033f33" }}>—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="px-2 py-0.5 text-xs font-bold tracking-widest uppercase" style={{ backgroundColor: sc.bg, color: sc.text, fontFamily: "var(--font-brand), sans-serif" }}>
                           {STATUS_LABELS[order.status]}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                           {order.status === "pending" && (
                             <>
-                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "fulfilled")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap" style={{ backgroundColor: "#16a34a", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Mark Delivered</button>
+                              <button disabled={updating === order.id} onClick={() => setFinalizing(order)} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap" style={{ backgroundColor: "#1e40af", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Finalize & Invoice</button>
                               <button disabled={updating === order.id} onClick={() => setStatus(order.id, "cancelled")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}>Cancel</button>
+                            </>
+                          )}
+                          {order.status === "invoiced" && (
+                            <>
+                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "fulfilled")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap" style={{ backgroundColor: "#16a34a", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Mark Delivered</button>
+                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "pending")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}>Reopen</button>
                             </>
                           )}
                           {order.status === "fulfilled" && (
                             <>
                               <button disabled={updating === order.id} onClick={() => setStatus(order.id, "archived")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ backgroundColor: "#475569", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Archive</button>
-                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "pending")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}>Reopen</button>
+                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "invoiced")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}>Reopen</button>
                             </>
                           )}
                           {order.status === "cancelled" && (
@@ -478,20 +757,21 @@ export default function CustomerOrders() {
                     </tr>
                     {isExpanded && (
                       <tr key={`${order.id}-detail`} style={{ backgroundColor: "#f8f8fb", borderBottom: "1px solid #03033f08" }}>
-                        <td colSpan={6} className="px-6 py-4">
+                        <td colSpan={7} className="px-6 py-4">
                           <div className="flex flex-col gap-3">
                             <div className="flex flex-wrap gap-6 text-xs" style={{ color: "#03033f88" }}>
                               <span><strong style={{ color: "#03033f" }}>Email:</strong> <a href={`mailto:${order.customer.email}`} style={{ color: "#0284c7" }}>{order.customer.email}</a></span>
                               {order.customer.phone && <span><strong style={{ color: "#03033f" }}>Phone:</strong> {order.customer.phone}</span>}
                               {order.customer.company && <span><strong style={{ color: "#03033f" }}>Company:</strong> {order.customer.company}</span>}
                               {order.fulfillment && <span><strong style={{ color: "#03033f" }}>Fulfillment:</strong> {order.fulfillment === "delivery" ? `Delivery${order.address ? ` — ${order.address}` : ""}` : "Pick-Up"}</span>}
+                              {order.invoicedAt && <span><strong style={{ color: "#03033f" }}>Invoiced:</strong> {fmt(order.invoicedAt)}</span>}
                               {order.fulfilledAt && <span><strong style={{ color: "#03033f" }}>Delivered:</strong> {fmt(order.fulfilledAt)}</span>}
                               {order.archivedAt && <span><strong style={{ color: "#03033f" }}>Archived:</strong> {fmt(order.archivedAt)}</span>}
                             </div>
-                            <table className="text-xs border-collapse" style={{ maxWidth: 500 }}>
+                            <table className="text-xs border-collapse" style={{ maxWidth: 600 }}>
                               <thead>
                                 <tr style={{ borderBottom: "1px solid #03033f14" }}>
-                                  {["Item No", "Product", "Cases"].map((h) => (
+                                  {["Item No", "Product", "Cases", "Weights", "Price", "Line Total"].map((h) => (
                                     <th key={h} className="py-1 pr-6 text-left font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>{h}</th>
                                   ))}
                                 </tr>
@@ -501,11 +781,25 @@ export default function CustomerOrders() {
                                   <tr key={item.productId} style={{ borderBottom: "1px solid #03033f08" }}>
                                     <td className="py-1.5 pr-6 font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{item.itemNo}</td>
                                     <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.name}</td>
-                                    <td className="py-1.5" style={{ color: "#03033f" }}>{item.qty}</td>
+                                    <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.qty}</td>
+                                    <td className="py-1.5 pr-6 text-xs" style={{ color: "#03033f66" }}>
+                                      {item.boxWeights ? item.boxWeights.map((w, i) => `#${i + 1}: ${w} ${item.weightUnit ?? ""}`).join(", ") : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>
+                                      {item.pricePerUnit != null ? `$${item.pricePerUnit}/${item.pricingType === "per_box" ? "box" : (item.weightUnit ?? "kg").toLowerCase()}` : "—"}
+                                    </td>
+                                    <td className="py-1.5 font-bold" style={{ color: "#03033f" }}>
+                                      {item.lineTotal != null ? fmtMoney(item.lineTotal) : "—"}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
+                            {order.invoiceTotal != null && (
+                              <p className="text-sm font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                                Order Total: {fmtMoney(order.invoiceTotal)}
+                              </p>
+                            )}
                             {order.notes && <p className="text-xs" style={{ color: "#03033f88" }}><strong style={{ color: "#03033f" }}>Notes:</strong> {order.notes}</p>}
                           </div>
                         </td>

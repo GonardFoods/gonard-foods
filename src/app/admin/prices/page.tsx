@@ -13,6 +13,7 @@ interface Row {
   weightUnit: "KG" | "LB";
   pricePerUnit: number | null;
   caseWeight: number | null;
+  pricingType: "per_weight" | "per_box";
   saving: boolean;
   saved: boolean;
 }
@@ -28,6 +29,7 @@ export default function AdminPricesPage() {
       weightUnit: getWeightUnit(p.unit),
       pricePerUnit: null,
       caseWeight: null,
+      pricingType: "per_weight" as const,
       saving: false,
       saved: false,
     }))
@@ -44,6 +46,7 @@ export default function AdminPricesPage() {
             ...row,
             pricePerUnit: data[row.id]?.pricePerUnit ?? null,
             caseWeight: data[row.id]?.caseWeight ?? null,
+            pricingType: data[row.id]?.pricingType ?? "per_weight",
           }))
         );
         setLoading(false);
@@ -61,6 +64,16 @@ export default function AdminPricesPage() {
     );
   }
 
+  function togglePricingType(id: string) {
+    setRows((prev) =>
+      prev.map((row) =>
+        row.id === id
+          ? { ...row, pricingType: row.pricingType === "per_weight" ? "per_box" : "per_weight", saved: false }
+          : row
+      )
+    );
+  }
+
   async function saveRow(id: string) {
     const row = rows.find((r) => r.id === id);
     if (!row) return;
@@ -69,7 +82,7 @@ export default function AdminPricesPage() {
     await fetch(`/api/admin/prices/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pricePerUnit: row.pricePerUnit, caseWeight: row.caseWeight }),
+      body: JSON.stringify({ pricePerUnit: row.pricePerUnit, caseWeight: row.caseWeight, pricingType: row.pricingType }),
     });
 
     setRows((prev) =>
@@ -115,8 +128,8 @@ export default function AdminPricesPage() {
       </div>
 
       <p className="text-xs leading-relaxed" style={{ color: "#03033f66" }}>
-        Enter the estimated mean case weight and the price per {" "}
-        <strong>KG or LB</strong> (whichever unit the product is priced in). The customer-facing product page will calculate estimated order weight and cost automatically.
+        Set each product&apos;s billing method. <strong>Per Weight</strong> products are charged $/kg or $/lb — weights are entered when finalizing an order.{" "}
+        <strong>Per Box</strong> products are charged a flat rate per case — no weight entry needed.
       </p>
 
       {loading ? (
@@ -128,7 +141,7 @@ export default function AdminPricesPage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ borderBottom: "2px solid #03033f14" }}>
-                {["Item No.", "Product", "Category", "Unit", "Case Weight", "Price / Unit", ""].map((h) => (
+                {["Item No.", "Product", "Category", "Billing", "Case Weight", "Price", ""].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-bold tracking-widest uppercase whitespace-nowrap"
@@ -140,75 +153,100 @@ export default function AdminPricesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => (
-                <tr
-                  key={row.id}
-                  className="hover:bg-gray-50 transition-colors"
-                  style={{ borderBottom: "1px solid #03033f08" }}
-                >
-                  <td className="px-4 py-3 text-xs font-mono" style={{ color: "#03033f66" }}>
-                    {row.itemNo}
-                  </td>
-                  <td className="px-4 py-3 font-bold text-xs max-w-[200px]" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
-                    {row.name}
-                  </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: "#03033f99" }}>
-                    {row.category}
-                  </td>
-                  <td className="px-4 py-3 text-xs font-mono" style={{ color: "#03033f66" }}>
-                    {row.unit}
-                  </td>
-                  {/* Case weight input */}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={row.caseWeight ?? ""}
-                        onChange={(e) => updateField(row.id, "caseWeight", e.target.value)}
-                        placeholder="—"
-                        className="w-20 px-2 py-1.5 text-xs text-right outline-none"
-                        style={{ border: "1px solid #03033f22", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-                      />
-                      <span className="text-xs" style={{ color: "#03033f55" }}>{row.weightUnit}</span>
-                    </div>
-                  </td>
-                  {/* Price per unit input */}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs" style={{ color: "#03033f55" }}>$</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={row.pricePerUnit ?? ""}
-                        onChange={(e) => updateField(row.id, "pricePerUnit", e.target.value)}
-                        placeholder="—"
-                        className="w-20 px-2 py-1.5 text-xs text-right outline-none"
-                        style={{ border: "1px solid #03033f22", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-                      />
-                      <span className="text-xs" style={{ color: "#03033f55" }}>/{row.weightUnit}</span>
-                    </div>
-                  </td>
-                  {/* Save button */}
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => saveRow(row.id)}
-                      disabled={row.saving}
-                      className="px-3 py-1.5 text-xs font-bold tracking-widest uppercase transition-all"
-                      style={{
-                        backgroundColor: row.saved ? "#16a34a" : "#03033f",
-                        color: "#ffffff",
-                        fontFamily: "var(--font-brand), sans-serif",
-                        opacity: row.saving ? 0.5 : 1,
-                      }}
-                    >
-                      {row.saved ? "Saved ✓" : row.saving ? "…" : "Save"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((row) => {
+                const isPerBox = row.pricingType === "per_box";
+                return (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-gray-50 transition-colors"
+                    style={{ borderBottom: "1px solid #03033f08" }}
+                  >
+                    <td className="px-4 py-3 text-xs font-mono" style={{ color: "#03033f66" }}>
+                      {row.itemNo}
+                    </td>
+                    <td className="px-4 py-3 font-bold text-xs max-w-[200px]" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {row.name}
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: "#03033f99" }}>
+                      {row.category}
+                    </td>
+                    {/* Billing type toggle */}
+                    <td className="px-4 py-3">
+                      <div className="flex rounded overflow-hidden" style={{ border: "1px solid #03033f22", width: "fit-content" }}>
+                        {(["per_weight", "per_box"] as const).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => { if (row.pricingType !== t) togglePricingType(row.id); }}
+                            className="px-2 py-1 text-xs font-bold tracking-widest uppercase transition-colors"
+                            style={{
+                              fontFamily: "var(--font-brand), sans-serif",
+                              backgroundColor: row.pricingType === t ? "#03033f" : "transparent",
+                              color: row.pricingType === t ? "#fff" : "#03033f66",
+                            }}
+                          >
+                            {t === "per_weight" ? "/ Weight" : "/ Box"}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                    {/* Case weight — hidden for per_box */}
+                    <td className="px-4 py-3">
+                      {isPerBox ? (
+                        <span className="text-xs" style={{ color: "#03033f33" }}>—</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={row.caseWeight ?? ""}
+                            onChange={(e) => updateField(row.id, "caseWeight", e.target.value)}
+                            placeholder="—"
+                            className="w-20 px-2 py-1.5 text-xs text-right outline-none"
+                            style={{ border: "1px solid #03033f22", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+                          />
+                          <span className="text-xs" style={{ color: "#03033f55" }}>{row.weightUnit}</span>
+                        </div>
+                      )}
+                    </td>
+                    {/* Price input */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs" style={{ color: "#03033f55" }}>$</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={row.pricePerUnit ?? ""}
+                          onChange={(e) => updateField(row.id, "pricePerUnit", e.target.value)}
+                          placeholder="—"
+                          className="w-20 px-2 py-1.5 text-xs text-right outline-none"
+                          style={{ border: "1px solid #03033f22", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+                        />
+                        <span className="text-xs" style={{ color: "#03033f55" }}>
+                          {isPerBox ? "/box" : `/${row.weightUnit}`}
+                        </span>
+                      </div>
+                    </td>
+                    {/* Save button */}
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => saveRow(row.id)}
+                        disabled={row.saving}
+                        className="px-3 py-1.5 text-xs font-bold tracking-widest uppercase transition-all"
+                        style={{
+                          backgroundColor: row.saved ? "#16a34a" : "#03033f",
+                          color: "#ffffff",
+                          fontFamily: "var(--font-brand), sans-serif",
+                          opacity: row.saving ? 0.5 : 1,
+                        }}
+                      >
+                        {row.saved ? "Saved ✓" : row.saving ? "…" : "Save"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {filtered.length === 0 && (

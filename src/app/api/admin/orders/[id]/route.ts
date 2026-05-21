@@ -1,7 +1,7 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions, type AdminSession } from "@/lib/session";
-import { updateOrder, type OrderStatus } from "@/lib/orders-store";
+import { updateOrder, type OrderStatus, type OrderItem } from "@/lib/orders-store";
 
 async function isAdmin() {
   const session = await getIronSession<AdminSession>(await cookies(), sessionOptions);
@@ -14,8 +14,34 @@ export async function PUT(
 ) {
   if (!(await isAdmin())) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const { status } = await req.json() as { status?: OrderStatus };
-  if (!status || !["pending", "fulfilled", "cancelled", "archived"].includes(status)) {
+  const body = await req.json() as {
+    status?: OrderStatus;
+    items?: OrderItem[];
+    invoiceTotal?: number;
+  };
+
+  const validStatuses: OrderStatus[] = ["pending", "invoiced", "fulfilled", "cancelled", "archived"];
+
+  // Finalize (invoiced) — full patch with items + total
+  if (body.status === "invoiced") {
+    if (!body.items || !body.invoiceTotal) {
+      return Response.json({ error: "items and invoiceTotal required for invoiced status." }, { status: 400 });
+    }
+    const now = new Date().toISOString();
+    const updated = await updateOrder(id, {
+      status: "invoiced",
+      items: body.items,
+      invoiceTotal: body.invoiceTotal,
+      invoicedAt: now,
+      sageSynced: false,
+    });
+    if (!updated) return Response.json({ error: "Order not found." }, { status: 404 });
+    return Response.json(updated);
+  }
+
+  // Normal status transitions
+  const { status } = body;
+  if (!status || !validStatuses.includes(status)) {
     return Response.json({ error: "Invalid status." }, { status: 400 });
   }
   const now = new Date().toISOString();

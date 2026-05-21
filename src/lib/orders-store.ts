@@ -18,6 +18,11 @@ export interface OrderItem {
   itemNo: string;
   name: string;
   qty: number; // cases
+  pricingType?: "per_weight" | "per_box";
+  weightUnit?: "KG" | "LB";
+  boxWeights?: number[]; // individual box weights in kg/lb, length === qty
+  pricePerUnit?: number; // $/kg, $/lb, or $/box (fire-sale override or standard)
+  lineTotal?: number; // computed at finalization
 }
 
 export interface CustomerInfo {
@@ -27,7 +32,7 @@ export interface CustomerInfo {
   phone?: string;
 }
 
-export type OrderStatus = "pending" | "fulfilled" | "cancelled" | "archived";
+export type OrderStatus = "pending" | "invoiced" | "fulfilled" | "cancelled" | "archived";
 
 export interface WebOrder {
   id: string;
@@ -39,8 +44,11 @@ export interface WebOrder {
   items: OrderItem[];
   notes?: string;
   status: OrderStatus;
+  invoiceTotal?: number;
+  invoicedAt?: string;
   fulfilledAt?: string;
   archivedAt?: string;
+  sageSynced?: boolean;
 }
 
 export async function getOrders(): Promise<WebOrder[]> {
@@ -79,7 +87,7 @@ export async function updateOrder(
 export function pendingByItemNo(orders: WebOrder[]): Record<string, number> {
   const result: Record<string, number> = {};
   for (const order of orders) {
-    if (order.status !== "pending") continue;
+    if (order.status !== "pending" && order.status !== "invoiced") continue;
     for (const item of order.items) {
       result[item.itemNo] = (result[item.itemNo] ?? 0) + item.qty;
     }

@@ -5,23 +5,30 @@ import Link from "next/link";
 import { customerSessionOptions, type CustomerSession } from "@/lib/customer-session";
 import { getCustomerById } from "@/lib/customers-store";
 import { getOrders } from "@/lib/orders-store";
+import { getPaymentsByCustomer } from "@/lib/payments-store";
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: "Pending",
+  pending:   "Pending",
+  invoiced:  "Invoiced",
   fulfilled: "Delivered",
   cancelled: "Cancelled",
-  archived: "Archived",
+  archived:  "Delivered",
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   pending:   { bg: "#fef9c3", text: "#854d0e" },
+  invoiced:  { bg: "#dbeafe", text: "#1e40af" },
   fulfilled: { bg: "#dcfce7", text: "#166534" },
   cancelled: { bg: "#fee2e2", text: "#991b1b" },
-  archived:  { bg: "#f1f5f9", text: "#475569" },
+  archived:  { bg: "#dcfce7", text: "#166534" },
 };
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function fmtMoney(n: number) {
+  return "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default async function AccountPage() {
@@ -34,7 +41,10 @@ export default async function AccountPage() {
   const allOrders = await getOrders();
   const myOrders = allOrders
     .filter((o) => o.customerId === customer.id || o.customer.email.toLowerCase() === customer.email.toLowerCase())
-    .filter((o) => o.status !== "archived");
+    .filter((o) => o.status !== "cancelled")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const payments = await getPaymentsByCustomer(customer.id);
 
   const { passwordHash: _, ...pub } = customer;
 
@@ -63,7 +73,7 @@ export default async function AccountPage() {
               <div>
                 <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#854d0e", fontFamily: "var(--font-brand), sans-serif" }}>Outstanding Balance</p>
                 <p className="text-3xl font-bold mt-1" style={{ color: "#854d0e", fontFamily: "var(--font-brand), sans-serif" }}>
-                  ${pub.balance.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {fmtMoney(pub.balance)}
                 </p>
               </div>
               <p className="text-xs leading-relaxed max-w-xs text-right" style={{ color: "#92400e" }}>
@@ -96,7 +106,7 @@ export default async function AccountPage() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr style={{ borderBottom: "2px solid #03033f14" }}>
-                      {["Order", "Date", "Items", "Fulfillment", "Status"].map((h) => (
+                      {["Order", "Date", "Items", "Total", "Fulfillment", "Status"].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif", whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
@@ -110,6 +120,11 @@ export default async function AccountPage() {
                           <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: "#03033f88" }}>{fmt(order.createdAt)}</td>
                           <td className="px-4 py-3 text-xs" style={{ color: "#03033f88" }}>
                             {order.items.map((i) => `${i.name} ×${i.qty}`).join(", ")}
+                          </td>
+                          <td className="px-4 py-3 text-xs font-bold" style={{ color: "#03033f" }}>
+                            {order.invoiceTotal != null
+                              ? fmtMoney(order.invoiceTotal)
+                              : <span className="font-normal" style={{ color: "#03033f44" }}>Pending weight</span>}
                           </td>
                           <td className="px-4 py-3 text-xs capitalize" style={{ color: "#03033f88" }}>
                             {order.fulfillment ? (order.fulfillment === "delivery" && order.address ? `Delivery — ${order.address}` : "Pick-Up") : "—"}
@@ -127,6 +142,37 @@ export default async function AccountPage() {
               </div>
             )}
           </div>
+
+          {/* Payment History */}
+          {payments.length > 0 && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h2 className="text-lg font-bold tracking-[0.1em] uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Payment History</h2>
+                <div className="w-8 h-0.5 mt-2" style={{ backgroundColor: "#03033f" }} />
+              </div>
+              <div className="bg-white overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #03033f14" }}>
+                      {["Date", "Amount Received", "Balance Before", "Balance After"].map((h) => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif", whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((p) => (
+                      <tr key={p.id} style={{ borderBottom: "1px solid #03033f08" }}>
+                        <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: "#03033f88" }}>{fmt(p.receivedAt)}</td>
+                        <td className="px-4 py-3 text-xs font-bold" style={{ color: "#166534" }}>{fmtMoney(p.amount)}</td>
+                        <td className="px-4 py-3 text-xs" style={{ color: "#03033f88" }}>{p.balanceBefore != null ? fmtMoney(p.balanceBefore) : "—"}</td>
+                        <td className="px-4 py-3 text-xs" style={{ color: "#03033f88" }}>{p.balanceAfter != null ? fmtMoney(p.balanceAfter) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Account info */}
           <div className="flex flex-col gap-4">

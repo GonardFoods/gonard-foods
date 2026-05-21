@@ -1,6 +1,7 @@
 export interface PriceData {
   pricePerUnit: number | null;
   caseWeight: number | null;
+  pricingType: "per_weight" | "per_box";
 }
 
 async function getKV() {
@@ -20,10 +21,11 @@ export async function getProductPriceData(productId: string): Promise<PriceData>
   if (!kv) return { pricePerUnit: null, caseWeight: null };
   try {
     const raw = await kv.hgetall(`product:${productId}`);
-    if (!raw) return { pricePerUnit: null, caseWeight: null };
+    if (!raw) return { pricePerUnit: null, caseWeight: null, pricingType: "per_weight" };
     return {
       pricePerUnit: raw.pricePerUnit != null ? Number(raw.pricePerUnit) : null,
       caseWeight: raw.caseWeight != null ? Number(raw.caseWeight) : null,
+      pricingType: raw.pricingType === "per_box" ? "per_box" : "per_weight",
     };
   } catch {
     return { pricePerUnit: null, caseWeight: null };
@@ -44,6 +46,7 @@ export async function getAllProductPriceData(
         result[id] = {
           pricePerUnit: raw?.pricePerUnit != null ? Number(raw.pricePerUnit) : null,
           caseWeight: raw?.caseWeight != null ? Number(raw.caseWeight) : null,
+          pricingType: raw?.pricingType === "per_box" ? "per_box" : "per_weight",
         };
       } catch {
         result[id] = { pricePerUnit: null, caseWeight: null };
@@ -60,9 +63,10 @@ export async function setProductPriceData(
 ): Promise<void> {
   const kv = await getKV();
   if (!kv) return;
-  const payload: Record<string, number | null> = {};
+  const payload: Record<string, number | string | null> = {};
   if (data.pricePerUnit !== undefined) payload.pricePerUnit = data.pricePerUnit;
   if (data.caseWeight !== undefined) payload.caseWeight = data.caseWeight;
+  if (data.pricingType !== undefined) payload.pricingType = data.pricingType;
   if (Object.keys(payload).length > 0) {
     await kv.hset(`product:${productId}`, payload);
   }

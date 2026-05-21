@@ -12,11 +12,12 @@ export async function PUT(
   if (!session.isAdmin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const { pricePerUnit, caseWeight } = await req.json();
+  const { pricePerUnit, caseWeight, pricingType } = await req.json();
 
   await setProductPriceData(id, {
     pricePerUnit: pricePerUnit != null ? Number(pricePerUnit) : null,
     caseWeight: caseWeight != null ? Number(caseWeight) : null,
+    pricingType: pricingType === "per_box" ? "per_box" : "per_weight",
   });
 
   return NextResponse.json({ ok: true });
