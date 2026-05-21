@@ -28,7 +28,7 @@ export async function getProductPriceData(productId: string): Promise<PriceData>
       pricingType: raw.pricingType === "per_box" ? "per_box" : "per_weight",
     };
   } catch {
-    return { pricePerUnit: null, caseWeight: null };
+    return { pricePerUnit: null, caseWeight: null, pricingType: "per_weight" };
   }
 }
 
@@ -49,7 +49,7 @@ export async function getAllProductPriceData(
           pricingType: raw?.pricingType === "per_box" ? "per_box" : "per_weight",
         };
       } catch {
-        result[id] = { pricePerUnit: null, caseWeight: null };
+        result[id] = { pricePerUnit: null, caseWeight: null, pricingType: "per_weight" };
       }
     })
   );
