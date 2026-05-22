@@ -53,14 +53,15 @@ export default function CheckoutPage() {
     fetch("/api/customer/me")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (data?.name) {
-          setLoggedInCustomer(data);
+        const c = data?.customer;
+        if (c?.name) {
+          setLoggedInCustomer(c);
           setForm((f) => ({
             ...f,
-            name: data.name ?? "",
-            email: data.email ?? "",
-            phone: data.phone ?? "",
-            company: data.company ?? "",
+            name: c.name ?? "",
+            email: c.email ?? "",
+            phone: c.phone ?? "",
+            company: c.company ?? "",
           }));
         }
         setCustomerLoaded(true);
