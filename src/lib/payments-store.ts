@@ -15,7 +15,7 @@ const KV_KEY = "payments_v1";
 
 export interface Payment {
   id: string;
-  customerId: string;
+  customerId: string | null; // null for unmatched e-transfers pending manual assignment
   customerName: string;
   amount: number;
   receivedAt: string; // ISO
@@ -39,6 +39,11 @@ export async function getPayments(): Promise<Payment[]> {
 export async function getPaymentsByCustomer(customerId: string): Promise<Payment[]> {
   const all = await getPayments();
   return all.filter((p) => p.customerId === customerId);
+}
+
+export async function getUnmatchedPayments(): Promise<Payment[]> {
+  const all = await getPayments();
+  return all.filter((p) => p.customerId === null);
 }
 
 export async function savePayment(payment: Payment): Promise<void> {
