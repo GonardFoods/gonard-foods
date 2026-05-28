@@ -66,24 +66,30 @@ def load_sage_sdk():
         clr.AddReference("Sage_SA.SDK")
 
         from SimplySDK import SDKInstanceManager as _mgr
-        from SimplySDK.Support import SDKAlert, AlertResult
 
-        # Auto-answer alert handler — logs alerts and always says YES
-        class SilentAlert(SDKAlert):
-            def AskAlert(self, message):
-                log.info("Sage alert: %s", message.Message)
-                return AlertResult.YES
-            def AskSaveAlert(self):
-                return AlertResult.YES
-            def YNCAlert(self, message):
-                log.info("Sage YNC alert: %s", message.Message)
-                return AlertResult.YES
-            def StopAlert(self, message):
-                log.warning("Sage stop: %s", message.Message)
-            def StopAlertNotShow(self, message):
-                return False
+        # Try to set up a silent alert handler; skip if the alert API differs in this SDK version
+        try:
+            from SimplySDK.Support import SDKAlert, AlertResult
 
-        _mgr.Instance.SetAlertImplementation(SilentAlert())
+            class SilentAlert(SDKAlert):
+                def AskAlert(self, message):
+                    log.info("Sage alert: %s", message.Message)
+                    return AlertResult.YES
+                def AskSaveAlert(self):
+                    return AlertResult.YES
+                def YNCAlert(self, message):
+                    log.info("Sage YNC alert: %s", message.Message)
+                    return AlertResult.YES
+                def StopAlert(self, message):
+                    log.warning("Sage stop: %s", message.Message)
+                def StopAlertNotShow(self, message):
+                    return False
+
+            _mgr.Instance.SetAlertImplementation(SilentAlert())
+            log.info("Sage alert handler installed")
+        except Exception:
+            log.info("Sage alert handler skipped (SDK version difference) — exceptions will be raised on alerts")
+
         SDKInstanceManager = _mgr
         SAGE_AVAILABLE = True
         log.info("Sage 50 SDK loaded from %s", config.SAGE_SDK_PATH)
