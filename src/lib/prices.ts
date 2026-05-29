@@ -1,7 +1,7 @@
 export interface PriceData {
   pricePerUnit: number | null;
   caseWeight: number | null;
-  pricingType: "per_weight" | "per_box";
+  pricingType: "per_weight" | "per_box" | "per_weight_direct";
 }
 
 async function getKV() {
@@ -25,7 +25,7 @@ export async function getProductPriceData(productId: string): Promise<PriceData>
     return {
       pricePerUnit: raw.pricePerUnit != null ? Number(raw.pricePerUnit) : null,
       caseWeight: raw.caseWeight != null ? Number(raw.caseWeight) : null,
-      pricingType: raw.pricingType === "per_box" ? "per_box" : "per_weight",
+      pricingType: raw.pricingType === "per_box" ? "per_box" : raw.pricingType === "per_weight_direct" ? "per_weight_direct" : "per_weight",
     };
   } catch {
     return { pricePerUnit: null, caseWeight: null, pricingType: "per_weight" };
@@ -46,7 +46,7 @@ export async function getAllProductPriceData(
         result[id] = {
           pricePerUnit: raw?.pricePerUnit != null ? Number(raw.pricePerUnit) : null,
           caseWeight: raw?.caseWeight != null ? Number(raw.caseWeight) : null,
-          pricingType: raw?.pricingType === "per_box" ? "per_box" : "per_weight",
+          pricingType: raw?.pricingType === "per_box" ? "per_box" : raw?.pricingType === "per_weight_direct" ? "per_weight_direct" : "per_weight",
         };
       } catch {
         result[id] = { pricePerUnit: null, caseWeight: null, pricingType: "per_weight" };

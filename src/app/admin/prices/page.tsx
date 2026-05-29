@@ -13,7 +13,7 @@ interface Row {
   weightUnit: "KG" | "LB";
   pricePerUnit: number | null;
   caseWeight: number | null;
-  pricingType: "per_weight" | "per_box";
+  pricingType: "per_weight" | "per_box" | "per_weight_direct";
   saving: boolean;
   saved: boolean;
 }
@@ -29,7 +29,7 @@ export default function AdminPricesPage() {
       weightUnit: getWeightUnit(p.unit),
       pricePerUnit: null,
       caseWeight: null,
-      pricingType: "per_weight" as const,
+      pricingType: "per_weight" as "per_weight" | "per_box" | "per_weight_direct",
       saving: false,
       saved: false,
     }))
@@ -64,13 +64,9 @@ export default function AdminPricesPage() {
     );
   }
 
-  function togglePricingType(id: string) {
+  function setPricingType(id: string, type: "per_weight" | "per_box" | "per_weight_direct") {
     setRows((prev) =>
-      prev.map((row) =>
-        row.id === id
-          ? { ...row, pricingType: row.pricingType === "per_weight" ? "per_box" : "per_weight", saved: false }
-          : row
-      )
+      prev.map((row) => row.id === id ? { ...row, pricingType: type, saved: false } : row)
     );
   }
 
@@ -155,6 +151,8 @@ export default function AdminPricesPage() {
             <tbody>
               {filtered.map((row) => {
                 const isPerBox = row.pricingType === "per_box";
+                const isWeightDirect = row.pricingType === "per_weight_direct";
+                const hideWeight = isPerBox || isWeightDirect;
                 return (
                   <tr
                     key={row.id}
@@ -170,28 +168,32 @@ export default function AdminPricesPage() {
                     <td className="px-4 py-3 text-xs" style={{ color: "#03033f99" }}>
                       {row.category}
                     </td>
-                    {/* Billing type toggle */}
+                    {/* Billing type — three options */}
                     <td className="px-4 py-3">
                       <div className="flex rounded overflow-hidden" style={{ border: "1px solid #03033f22", width: "fit-content" }}>
-                        {(["per_weight", "per_box"] as const).map((t) => (
+                        {([
+                          { value: "per_box",            label: "/box (fixed)"  },
+                          { value: "per_weight",         label: "/box (weight)" },
+                          { value: "per_weight_direct",  label: "/weight"       },
+                        ] as const).map(({ value, label }) => (
                           <button
-                            key={t}
-                            onClick={() => { if (row.pricingType !== t) togglePricingType(row.id); }}
+                            key={value}
+                            onClick={() => { if (row.pricingType !== value) setPricingType(row.id, value); }}
                             className="px-2 py-1 text-xs font-bold tracking-widest uppercase transition-colors"
                             style={{
                               fontFamily: "var(--font-brand), sans-serif",
-                              backgroundColor: row.pricingType === t ? "#03033f" : "transparent",
-                              color: row.pricingType === t ? "#fff" : "#03033f66",
+                              backgroundColor: row.pricingType === value ? "#03033f" : "transparent",
+                              color: row.pricingType === value ? "#fff" : "#03033f66",
                             }}
                           >
-                            {t === "per_weight" ? "/ Weight" : "/ Box"}
+                            {label}
                           </button>
                         ))}
                       </div>
                     </td>
-                    {/* Case weight — hidden for per_box */}
+                    {/* Case weight — hidden for per_box and per_weight_direct */}
                     <td className="px-4 py-3">
-                      {isPerBox ? (
+                      {hideWeight ? (
                         <span className="text-xs" style={{ color: "#03033f33" }}>—</span>
                       ) : (
                         <div className="flex items-center gap-1">
@@ -226,6 +228,7 @@ export default function AdminPricesPage() {
                         <span className="text-xs" style={{ color: "#03033f55" }}>
                           {isPerBox ? "/box" : `/${row.weightUnit}`}
                         </span>
+
                       </div>
                     </td>
                     {/* Save button */}
