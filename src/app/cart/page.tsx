@@ -24,16 +24,21 @@ export default function CartPage() {
     });
   }, [items]);
 
+  function itemEstimate(productId: string, quantity: number) {
+    const p = prices[productId];
+    if (!p?.pricePerUnit) return null;
+    if (p.pricingType === "per_weight_direct") return quantity * p.pricePerUnit;
+    if (p.pricingType === "per_box") return quantity * p.pricePerUnit;
+    if (p.caseWeight != null) return quantity * p.caseWeight * p.pricePerUnit;
+    return null;
+  }
+
   const estimatedTotal = items.reduce((sum, item) => {
-    const p = prices[item.productId];
-    if (!p?.caseWeight || !p?.pricePerUnit) return sum;
-    return sum + item.quantity * p.caseWeight * p.pricePerUnit;
+    const est = itemEstimate(item.productId, item.quantity);
+    return est != null ? sum + est : sum;
   }, 0);
 
-  const hasAnyPrice = items.some((item) => {
-    const p = prices[item.productId];
-    return p?.caseWeight != null && p?.pricePerUnit != null;
-  });
+  const hasAnyPrice = items.some((item) => itemEstimate(item.productId, item.quantity) != null);
 
   if (itemCount === 0) {
     return (
@@ -111,9 +116,10 @@ export default function CartPage() {
           <div className="flex flex-col divide-y" style={{ borderTop: "1px solid #03033f0d", borderBottom: "1px solid #03033f0d" }}>
             {items.map((item) => {
               const p = prices[item.productId];
+              const isWeightDirect = p?.pricingType === "per_weight_direct";
               const weightUnit = getWeightUnit(item.unit);
-              const estWeight = p?.caseWeight != null ? item.quantity * p.caseWeight : null;
-              const estPrice = estWeight != null && p?.pricePerUnit != null ? estWeight * p.pricePerUnit : null;
+              const estWeight = !isWeightDirect && p?.caseWeight != null ? item.quantity * p.caseWeight : null;
+              const estPrice = itemEstimate(item.productId, item.quantity);
 
               return (
                 <div key={item.productId} className="py-5 flex items-start gap-4">
@@ -126,14 +132,13 @@ export default function CartPage() {
                       {item.name}
                     </Link>
                     <p className="text-xs mt-0.5 tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
-                      {CATEGORY_LABELS[item.category]} · {item.unit}
+                      {CATEGORY_LABELS[item.category]} · {isWeightDirect ? item.unit : item.unit}
                     </p>
                     <p className="text-xs mt-1" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>
-                      {estWeight != null ? (
-                        <>
-                          ~{fmt(estWeight, 1)} {weightUnit}
-                          {estPrice != null && <> · ~${fmt(estPrice)}</>}
-                        </>
+                      {isWeightDirect ? (
+                        <>{fmt(item.quantity, 2)} {item.unit}{estPrice != null && <> · ~${fmt(estPrice)}</>}</>
+                      ) : estWeight != null ? (
+                        <>~{fmt(estWeight, 1)} {weightUnit}{estPrice != null && <> · ~${fmt(estPrice)}</>}</>
                       ) : (
                         <span style={{ color: "#03033f44" }}>Price not set</span>
                       )}
@@ -142,23 +147,35 @@ export default function CartPage() {
 
                   {/* Quantity controls */}
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => updateQty(item.productId, item.quantity - 1)}
-                      className="w-7 h-7 flex items-center justify-center border text-sm font-bold hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: "#03033f33", color: "#03033f" }}
-                    >
-                      −
-                    </button>
-                    <span className="w-8 text-center text-sm font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateQty(item.productId, item.quantity + 1)}
-                      className="w-7 h-7 flex items-center justify-center border text-sm font-bold hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: "#03033f33", color: "#03033f" }}
-                    >
-                      +
-                    </button>
+                    {isWeightDirect ? (
+                      <input
+                        type="number" min={0.1} step={0.1}
+                        value={item.quantity}
+                        onChange={(e) => updateQty(item.productId, Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                        className="w-20 h-7 text-center text-sm font-bold outline-none border"
+                        style={{ borderColor: "#03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+                      />
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => updateQty(item.productId, item.quantity - 1)}
+                          className="w-7 h-7 flex items-center justify-center border text-sm font-bold hover:bg-gray-50 transition-colors"
+                          style={{ borderColor: "#03033f33", color: "#03033f" }}
+                        >
+                          −
+                        </button>
+                        <span className="w-8 text-center text-sm font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQty(item.productId, item.quantity + 1)}
+                          className="w-7 h-7 flex items-center justify-center border text-sm font-bold hover:bg-gray-50 transition-colors"
+                          style={{ borderColor: "#03033f33", color: "#03033f" }}
+                        >
+                          +
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Remove */}

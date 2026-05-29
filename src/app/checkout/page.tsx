@@ -246,15 +246,20 @@ export default function CheckoutPage() {
               <div className="w-10 h-0.5 mb-6" style={{ backgroundColor: "#03033f" }} />
             </div>
             <div className="flex flex-col divide-y" style={{ borderTop: "1px solid #03033f0d", borderBottom: "1px solid #03033f0d" }}>
-              {items.map((item) => (
-                <div key={item.productId} className="py-4 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold leading-snug" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{item.name}</p>
-                    <p className="text-xs mt-0.5 uppercase tracking-widest" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>{item.unit}</p>
+              {items.map((item) => {
+                const isWeightDirect = item.unit === "LB" || item.unit === "KG";
+                return (
+                  <div key={item.productId} className="py-4 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold leading-snug" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{item.name}</p>
+                      <p className="text-xs mt-0.5 uppercase tracking-widest" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>{item.unit}</p>
+                    </div>
+                    <span className="text-sm font-bold shrink-0" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                      {isWeightDirect ? `${item.quantity} ${item.unit}` : `${item.quantity} case${item.quantity !== 1 ? "s" : ""}`}
+                    </span>
                   </div>
-                  <span className="text-sm font-bold shrink-0" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{item.quantity} case{item.quantity !== 1 ? "s" : ""}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <p className="text-xs leading-relaxed" style={{ color: "#03033f55" }}>Pricing will be confirmed by our team after reviewing your order.</p>
             <Link href="/cart" className="text-xs font-bold tracking-widest uppercase underline hover:opacity-60 transition-opacity" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>← Edit Cart</Link>
