@@ -17,7 +17,7 @@ export async function PUT(
   await setProductPriceData(id, {
     pricePerUnit: pricePerUnit != null ? Number(pricePerUnit) : null,
     caseWeight: caseWeight != null ? Number(caseWeight) : null,
-    pricingType: pricingType === "per_box" ? "per_box" : "per_weight",
+    pricingType: pricingType === "per_box" ? "per_box" : pricingType === "per_weight_direct" ? "per_weight_direct" : "per_weight",
   });
 
   return NextResponse.json({ ok: true });
