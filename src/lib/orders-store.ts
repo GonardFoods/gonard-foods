@@ -30,6 +30,12 @@ export interface CustomerInfo {
   company?: string;
   email: string;
   phone?: string;
+  street1?: string;
+  street2?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  country?: string;
 }
 
 export type OrderStatus = "pending" | "invoiced" | "fulfilled" | "cancelled" | "archived";

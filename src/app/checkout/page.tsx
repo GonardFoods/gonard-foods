@@ -21,7 +21,6 @@ function isValidPhone(value: string): boolean {
   return digits.length >= 10 && digits.length <= 15;
 }
 
-// Pencil icon
 function PenIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -31,17 +30,23 @@ function PenIcon() {
   );
 }
 
+type FormState = {
+  name: string; company: string; email: string; phone: string; notes: string;
+  fulfillment: "" | "pickup" | "delivery";
+  street1: string; street2: string; city: string; province: string; postalCode: string; country: string;
+};
+
 export default function CheckoutPage() {
   const { items, itemCount, clearCart } = useCart();
   const [mounted, setMounted] = useState(false);
-  const [loggedInCustomer, setLoggedInCustomer] = useState<{ name: string; email: string; phone?: string; company?: string } | null>(null);
+  const [loggedInCustomer, setLoggedInCustomer] = useState<Record<string, string> | null>(null);
   const [customerLoaded, setCustomerLoaded] = useState(false);
   const [editingFields, setEditingFields] = useState<Set<string>>(new Set());
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<FormState>({
     name: "", company: "", email: "", phone: "", notes: "",
-    fulfillment: "" as "" | "pickup" | "delivery",
-    address: "",
+    fulfillment: "",
+    street1: "", street2: "", city: "", province: "", postalCode: "", country: "Canada",
   });
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -62,6 +67,12 @@ export default function CheckoutPage() {
             email: c.email ?? "",
             phone: c.phone ?? "",
             company: c.company ?? "",
+            street1: c.street1 ?? "",
+            street2: c.street2 ?? "",
+            city: c.city ?? "",
+            province: c.province ?? "",
+            postalCode: c.postalCode ?? "",
+            country: c.country ?? "Canada",
           }));
         }
         setCustomerLoaded(true);
@@ -69,7 +80,7 @@ export default function CheckoutPage() {
       .catch(() => setCustomerLoaded(true));
   }, []);
 
-  function set(key: keyof typeof form) {
+  function set(key: keyof FormState) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
   }
@@ -81,24 +92,27 @@ export default function CheckoutPage() {
   function toggleEdit(field: string) {
     setEditingFields((prev) => {
       const next = new Set(prev);
-      if (next.has(field)) next.delete(field);
-      else next.add(field);
+      if (next.has(field)) next.delete(field); else next.add(field);
       return next;
     });
   }
 
   const isConfirmMode = loggedInCustomer !== null;
+  const phoneError    = touched.phone      && !isValidPhone(form.phone);
+  const fulfillError  = touched.fulfillment && !form.fulfillment;
+  const addressError  = touched.street1    && form.fulfillment === "delivery" && !form.street1.trim();
 
-  const phoneError   = touched.phone      && !isValidPhone(form.phone);
-  const fulfillError = touched.fulfillment && !form.fulfillment;
-  const addressError = touched.address    && form.fulfillment === "delivery" && !form.address.trim();
+  function buildAddressString() {
+    return [form.street1, form.street2, form.city, form.province, form.postalCode, form.country]
+      .filter(Boolean).join(", ");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setTouched({ phone: true, fulfillment: true, address: true });
+    setTouched({ phone: true, fulfillment: true, street1: true });
     if (!isValidPhone(form.phone)) return;
     if (!form.fulfillment) return;
-    if (form.fulfillment === "delivery" && !form.address.trim()) return;
+    if (form.fulfillment === "delivery" && !form.street1.trim()) return;
 
     setStatus("sending");
     setErrorMsg("");
@@ -112,19 +126,21 @@ export default function CheckoutPage() {
             company: form.company || undefined,
             email: form.email,
             phone: form.phone,
+            street1: form.street1 || undefined,
+            street2: form.street2 || undefined,
+            city: form.city || undefined,
+            province: form.province || undefined,
+            postalCode: form.postalCode || undefined,
+            country: form.country || undefined,
           },
           fulfillment: form.fulfillment,
-          address: form.fulfillment === "delivery" ? form.address : undefined,
+          address: form.fulfillment === "delivery" ? buildAddressString() : undefined,
           items: items.map((i) => ({ productId: i.productId, name: i.name, qty: i.quantity })),
           notes: form.notes || undefined,
         }),
       });
       const data = await res.json() as { ok?: boolean; orderId?: string; error?: string };
-      if (!res.ok) {
-        setErrorMsg(data.error ?? "Something went wrong. Please try again.");
-        setStatus("error");
-        return;
-      }
+      if (!res.ok) { setErrorMsg(data.error ?? "Something went wrong. Please try again."); setStatus("error"); return; }
       setOrderId(data.orderId ?? "");
       clearCart();
       setStatus("sent");
@@ -185,26 +201,17 @@ export default function CheckoutPage() {
     );
   }
 
-  // Confirm field component for logged-in mode
-  function ConfirmField({ fieldKey, label, value, type = "text", required = false, placeholder = "" }: {
-    fieldKey: keyof typeof form; label: string; value: string; type?: string; required?: boolean; placeholder?: string;
+  function ConfirmField({ fieldKey, label, type = "text", required = false, placeholder = "" }: {
+    fieldKey: keyof FormState; label: string; type?: string; required?: boolean; placeholder?: string;
   }) {
     const editing = editingFields.has(fieldKey);
+    const value = form[fieldKey] as string;
     return (
       <div className="flex items-center justify-between gap-4 py-3" style={{ borderBottom: "1px solid #03033f08" }}>
         {editing ? (
           <div className="flex-1 flex flex-col gap-1">
             <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>{label}</label>
-            <input
-              type={type}
-              required={required}
-              placeholder={placeholder}
-              value={value}
-              onChange={set(fieldKey)}
-              autoFocus
-              className="px-3 py-2 text-sm w-full"
-              style={inputStyle}
-            />
+            <input type={type} required={required} placeholder={placeholder} value={value} onChange={set(fieldKey)} autoFocus className="px-3 py-2 text-sm w-full" style={inputStyle} />
           </div>
         ) : (
           <div className="flex-1">
@@ -212,13 +219,7 @@ export default function CheckoutPage() {
             <p className="text-sm mt-0.5" style={{ color: value ? "#03033f" : "#03033f44" }}>{value || <em>Not set</em>}</p>
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => toggleEdit(fieldKey)}
-          className="shrink-0 p-1.5 rounded hover:bg-gray-100 transition-colors"
-          style={{ color: editing ? "#03033f" : "#03033f55" }}
-          title={editing ? "Done" : `Edit ${label}`}
-        >
+        <button type="button" onClick={() => toggleEdit(fieldKey)} className="shrink-0 p-1.5 rounded hover:bg-gray-100 transition-colors" style={{ color: editing ? "#03033f" : "#03033f55" }} title={editing ? "Done" : `Edit ${label}`}>
           {editing ? <span className="text-xs font-bold">✓</span> : <PenIcon />}
         </button>
       </div>
@@ -269,14 +270,18 @@ export default function CheckoutPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-
               {isConfirmMode ? (
-                /* ── Logged-in confirm mode ── */
                 <div className="flex flex-col">
-                  <ConfirmField fieldKey="name"    label="Full Name"       value={form.name}    required placeholder="Jane Smith" />
-                  <ConfirmField fieldKey="company" label="Company"         value={form.company} placeholder="The Grand Restaurant" />
-                  <ConfirmField fieldKey="email"   label="Email"           value={form.email}   type="email" required placeholder="jane@restaurant.com" />
-                  <ConfirmField fieldKey="phone"   label="Phone"           value={form.phone}   type="tel"   required placeholder="(403) 555-0100" />
+                  <ConfirmField fieldKey="name"       label="Contact Name"      required placeholder="Jane Smith" />
+                  <ConfirmField fieldKey="company"    label="Business Name"     required placeholder="The Grand Restaurant" />
+                  <ConfirmField fieldKey="email"      label="Email"             type="email" required placeholder="jane@restaurant.com" />
+                  <ConfirmField fieldKey="phone"      label="Phone"             type="tel"   required placeholder="(403) 555-0100" />
+                  <ConfirmField fieldKey="street1"    label="Street Address"    required placeholder="123 Main St" />
+                  <ConfirmField fieldKey="street2"    label="Suite / Unit"      placeholder="Unit 4B" />
+                  <ConfirmField fieldKey="city"       label="City"              required placeholder="Calgary" />
+                  <ConfirmField fieldKey="province"   label="Province / State"  required placeholder="AB" />
+                  <ConfirmField fieldKey="postalCode" label="Postal Code"       required placeholder="T2P 1J9" />
+                  <ConfirmField fieldKey="country"    label="Country"           required placeholder="Canada" />
 
                   {/* Fulfillment toggle */}
                   <div className="py-4" style={{ borderBottom: "1px solid #03033f08" }}>
@@ -285,7 +290,8 @@ export default function CheckoutPage() {
                       {(["pickup", "delivery"] as const).map((option) => {
                         const active = form.fulfillment === option;
                         return (
-                          <button key={option} type="button" onClick={() => { setForm((f) => ({ ...f, fulfillment: option })); setTouched((t) => ({ ...t, fulfillment: true })); }}
+                          <button key={option} type="button"
+                            onClick={() => { setForm((f) => ({ ...f, fulfillment: option })); setTouched((t) => ({ ...t, fulfillment: true })); }}
                             className="flex-1 py-2.5 text-xs font-bold tracking-widest uppercase transition-colors"
                             style={{ fontFamily: "var(--font-brand), sans-serif", backgroundColor: active ? "#03033f" : "transparent", color: active ? "#fff" : "#03033f99", border: active ? "1px solid #03033f" : fulfillError ? "1px solid #dc2626" : "1px solid #03033f33" }}>
                             {option === "pickup" ? "Pick-Up" : "Delivery"}
@@ -296,39 +302,55 @@ export default function CheckoutPage() {
                     {fulfillError && <p className="text-xs mt-1" style={{ color: "#dc2626" }}>Please select a fulfillment method.</p>}
                   </div>
 
-                  {form.fulfillment === "delivery" && (
-                    <ConfirmField fieldKey="address" label="Delivery Address" value={form.address} required placeholder="123 Main St, Calgary, AB" />
-                  )}
-
-                  <ConfirmField fieldKey="notes" label="Notes (optional)" value={form.notes} placeholder="Special requests, etc." />
+                  <ConfirmField fieldKey="notes" label="Notes (optional)" placeholder="Special requests, etc." />
                 </div>
               ) : (
-                /* ── Guest mode — full form ── */
+                /* ── Guest mode ── */
                 <>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Full Name *</label>
-                    <input type="text" required value={form.name} onChange={set("name")} className="px-4 py-3 text-sm" style={inputStyle} placeholder="Jane Smith" />
+                  {[
+                    { key: "name",    label: "Contact Name *",   type: "text",     ph: "Jane Smith" },
+                    { key: "company", label: "Business Name *",  type: "text",     ph: "The Grand Restaurant" },
+                    { key: "email",   label: "Email *",          type: "email",    ph: "jane@restaurant.com" },
+                    { key: "phone",   label: "Phone *",          type: "tel",      ph: "(403) 555-0100" },
+                  ].map(({ key, label, type, ph }) => (
+                    <div key={key} className="flex flex-col gap-2">
+                      <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{label}</label>
+                      <input type={type} required value={form[key as keyof FormState] as string}
+                        onChange={set(key as keyof FormState)}
+                        onBlur={key === "phone" ? touch("phone") : undefined}
+                        className="px-4 py-3 text-sm"
+                        style={key === "phone" && phoneError ? inputErrorStyle : inputStyle}
+                        placeholder={ph} />
+                      {key === "phone" && phoneError && <p className="text-xs" style={{ color: "#dc2626" }}>Please enter a valid phone number.</p>}
+                    </div>
+                  ))}
+
+                  <div className="flex flex-col gap-3 pt-1">
+                    <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>Business Address</p>
+                    {[
+                      { key: "street1",    label: "Street Address *",        required: true,  ph: "123 Main St" },
+                      { key: "street2",    label: "Suite / Unit (optional)", required: false, ph: "Unit 4B" },
+                      { key: "city",       label: "City *",                  required: true,  ph: "Calgary" },
+                      { key: "province",   label: "Province / State *",      required: true,  ph: "AB" },
+                      { key: "postalCode", label: "Postal Code *",           required: true,  ph: "T2P 1J9" },
+                      { key: "country",    label: "Country *",               required: true,  ph: "Canada" },
+                    ].map(({ key, label, required, ph }) => (
+                      <div key={key} className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{label}</label>
+                        <input type="text" required={required} value={form[key as keyof FormState] as string}
+                          onChange={set(key as keyof FormState)} className="px-4 py-3 text-sm" style={inputStyle} placeholder={ph} />
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Company / Business <span style={{ color: "#03033f55" }}>(optional)</span></label>
-                    <input type="text" value={form.company} onChange={set("company")} className="px-4 py-3 text-sm" style={inputStyle} placeholder="The Grand Restaurant" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Email *</label>
-                    <input type="email" required value={form.email} onChange={set("email")} className="px-4 py-3 text-sm" style={inputStyle} placeholder="jane@restaurant.com" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Phone *</label>
-                    <input type="tel" required value={form.phone} onChange={set("phone")} onBlur={touch("phone")} className="px-4 py-3 text-sm" style={phoneError ? inputErrorStyle : inputStyle} placeholder="(403) 555-0100" />
-                    {phoneError && <p className="text-xs" style={{ color: "#dc2626" }}>Please enter a valid phone number.</p>}
-                  </div>
+
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Fulfillment Method *</label>
                     <div className="flex gap-3">
                       {(["pickup", "delivery"] as const).map((option) => {
                         const active = form.fulfillment === option;
                         return (
-                          <button key={option} type="button" onClick={() => { setForm((f) => ({ ...f, fulfillment: option })); setTouched((t) => ({ ...t, fulfillment: true })); }}
+                          <button key={option} type="button"
+                            onClick={() => { setForm((f) => ({ ...f, fulfillment: option })); setTouched((t) => ({ ...t, fulfillment: true })); }}
                             className="flex-1 py-3 text-xs font-bold tracking-widest uppercase transition-colors capitalize"
                             style={{ fontFamily: "var(--font-brand), sans-serif", backgroundColor: active ? "#03033f" : "transparent", color: active ? "#fff" : "#03033f99", border: active ? "1px solid #03033f" : fulfillError ? "1px solid #dc2626" : "1px solid #03033f33" }}>
                             {option === "pickup" ? "Pick-Up" : "Delivery"}
@@ -338,13 +360,7 @@ export default function CheckoutPage() {
                     </div>
                     {fulfillError && <p className="text-xs" style={{ color: "#dc2626" }}>Please select a fulfillment method.</p>}
                   </div>
-                  {form.fulfillment === "delivery" && (
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Delivery Address *</label>
-                      <input type="text" required value={form.address} onChange={set("address")} onBlur={touch("address")} className="px-4 py-3 text-sm" style={addressError ? inputErrorStyle : inputStyle} placeholder="123 Main St, Calgary, AB T2P 1J9" />
-                      {addressError && <p className="text-xs" style={{ color: "#dc2626" }}>Please enter a delivery address.</p>}
-                    </div>
-                  )}
+
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>Notes <span style={{ color: "#03033f55" }}>(optional)</span></label>
                     <textarea rows={3} value={form.notes} onChange={set("notes")} className="px-4 py-3 text-sm resize-none" style={inputStyle} placeholder="Special requests, preferred delivery window, etc." />

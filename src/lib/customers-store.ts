@@ -19,6 +19,12 @@ export interface Customer {
   company?: string;
   email: string;
   phone?: string;
+  street1?: string;
+  street2?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  country?: string;
   passwordHash: string;
   createdAt: string;
   notes?: string;       // admin-only notes

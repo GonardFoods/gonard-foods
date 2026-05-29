@@ -245,20 +245,75 @@ def check_email(processed_ids: set, customers: list) -> list:
     return newly_processed
 
 
+# ── Sage: ensure customer exists ─────────────────────────────────────────────
+def ensure_sage_customer(order: dict) -> bool:
+    """
+    Checks whether the customer exists in Sage by name. Creates them if not.
+    The Sage 'Customer' (Name) field is the business name; 'Contact' is the person's name.
+    Returns True if the customer is ready to be invoiced.
+    """
+    try:
+        cust = order["customer"]
+        # Use company/business name as the Sage customer name; fall back to contact name
+        sage_name = (cust.get("company") or cust.get("name", "")).strip()
+        if not sage_name:
+            log.warning("Order %s has no customer name — cannot ensure Sage customer", order.get("id"))
+            return False
+
+        custled = SDKInstanceManager.Instance.OpenCustomerLedger()
+        try:
+            if custled.LoadByName(sage_name):
+                return True  # already exists
+
+            # Create new customer
+            custled.InitializeNew()
+            custled.Name    = sage_name
+            custled.Contact = cust.get("name", "")
+            if cust.get("street1"):    custled.Street1    = cust["street1"]
+            if cust.get("street2"):    custled.Street2    = cust["street2"]
+            if cust.get("city"):       custled.City       = cust["city"]
+            if cust.get("province"):   custled.Province   = cust["province"]
+            if cust.get("postalCode"): custled.PostalCode = cust["postalCode"]
+            if cust.get("country"):    custled.Country    = cust["country"]
+            if cust.get("email"):      custled.Email      = cust["email"]
+            if cust.get("phone"):      custled.Phone1     = cust["phone"]
+
+            saved = custled.Save()
+            if saved:
+                log.info("Created Sage customer: %s", sage_name)
+            else:
+                log.warning("Sage customer Save() returned False for '%s'", sage_name)
+            return saved
+        finally:
+            SDKInstanceManager.Instance.CloseCustomerLedger()
+
+    except Exception:
+        log.error("Failed to ensure Sage customer for order %s:\n%s", order.get("id"), traceback.format_exc())
+        return False
+
+
 # ── Sage: create sales invoice ────────────────────────────────────────────────
 def create_sage_invoice(order: dict) -> bool:
     """
     Creates a sales invoice in Sage 50 using the SimplySDK SalesJournal.
-
-    The customer must already exist in Sage by the same name as in the web app.
+    Automatically creates the customer in Sage first if they don't exist.
     Items are matched by itemNo (must match Sage inventory part codes).
     """
     try:
+        # Ensure customer exists in Sage before opening the journal
+        if not ensure_sage_customer(order):
+            log.error("Aborting invoice for order %s — could not ensure Sage customer", order.get("id"))
+            return False
+
+        cust = order["customer"]
+        sage_customer_name = (cust.get("company") or cust.get("name", "")).strip()
+
         sal = SDKInstanceManager.Instance.OpenSalesJournal()
         try:
-            sal.SelectTransType(0)                          # 0 = invoice (not order/quote)
-            sal.InvoiceNumber = order["id"][:20]            # web order ID as invoice number
-            sal.SelectAPARLedger(order["customer"]["name"]) # must match Sage customer name exactly
+            sal.SelectTransType(0)                    # 0 = invoice (not order/quote)
+            sal.InvoiceNumber = order["id"][:20]      # web order ID as invoice number
+            sal.SelectAPARLedger(sage_customer_name)  # business name, now guaranteed to exist
+            sal.SelectPaidByType("Pay Later")         # outstanding balance
             sal.SelectPaidByType("Pay Later")               # outstanding balance
 
             date_str = (order.get("invoicedAt") or datetime.utcnow().isoformat())[:10]
