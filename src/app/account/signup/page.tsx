@@ -11,6 +11,21 @@ const inputStyle = {
   outline: "none",
 };
 
+function Field({ label, type = "text", required = true, placeholder = "", value, onChange }: {
+  label: string; type?: string; required?: boolean; placeholder?: string;
+  value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{label}</label>
+      <input
+        type={type} required={required} value={value} onChange={onChange}
+        className="px-4 py-3 text-sm" style={inputStyle} placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -52,21 +67,6 @@ export default function SignupPage() {
     }
   }
 
-  function Field({ fieldKey, label, type = "text", required = true, placeholder = "" }: {
-    fieldKey: keyof typeof form; label: string; type?: string; required?: boolean; placeholder?: string;
-  }) {
-    return (
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{label}</label>
-        <input
-          type={type} required={required}
-          value={form[fieldKey]} onChange={set(fieldKey)}
-          className="px-4 py-3 text-sm" style={inputStyle} placeholder={placeholder}
-        />
-      </div>
-    );
-  }
-
   return (
     <>
       <section
@@ -84,28 +84,28 @@ export default function SignupPage() {
         <div className="max-w-md mx-auto flex flex-col gap-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-            <Field fieldKey="name"    label="Contact Name *"    placeholder="Jane Smith" />
-            <Field fieldKey="company" label="Business Name *"   placeholder="The Grand Restaurant" />
-            <Field fieldKey="email"   label="Email *"           type="email" placeholder="jane@restaurant.com" />
-            <Field fieldKey="phone"   label="Phone *"           type="tel"   placeholder="(403) 555-0100" />
+            <Field label="Contact Name *"    value={form.name}     onChange={set("name")}     placeholder="Jane Smith" />
+            <Field label="Business Name *"   value={form.company}  onChange={set("company")}  placeholder="The Grand Restaurant" />
+            <Field label="Email *"           value={form.email}    onChange={set("email")}    type="email" placeholder="jane@restaurant.com" />
+            <Field label="Phone *"           value={form.phone}    onChange={set("phone")}    type="tel"   placeholder="(403) 555-0100" />
 
             <div className="pt-2">
               <p className="text-xs font-bold tracking-widest uppercase mb-4" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>Business Address</p>
               <div className="flex flex-col gap-4">
-                <Field fieldKey="street1"    label="Street Address *"      placeholder="123 Main St" />
-                <Field fieldKey="street2"    label="Suite / Unit (optional)" required={false} placeholder="Unit 4B" />
-                <Field fieldKey="city"       label="City *"                placeholder="Calgary" />
-                <Field fieldKey="province"   label="Province / State *"    placeholder="AB" />
-                <Field fieldKey="postalCode" label="Postal Code *"         placeholder="T2P 1J9" />
-                <Field fieldKey="country"    label="Country *"             placeholder="Canada" />
+                <Field label="Street Address *"        value={form.street1}    onChange={set("street1")}    placeholder="123 Main St" />
+                <Field label="Suite / Unit (optional)" value={form.street2}    onChange={set("street2")}    required={false} placeholder="Unit 4B" />
+                <Field label="City *"                  value={form.city}       onChange={set("city")}       placeholder="Calgary" />
+                <Field label="Province / State *"      value={form.province}   onChange={set("province")}   placeholder="AB" />
+                <Field label="Postal Code *"           value={form.postalCode} onChange={set("postalCode")} placeholder="T2P 1J9" />
+                <Field label="Country *"               value={form.country}    onChange={set("country")}    placeholder="Canada" />
               </div>
             </div>
 
             <div className="pt-2">
               <p className="text-xs font-bold tracking-widest uppercase mb-4" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>Password</p>
               <div className="flex flex-col gap-4">
-                <Field fieldKey="password" label="Password *"         type="password" placeholder="Min. 8 characters" />
-                <Field fieldKey="confirm"  label="Confirm Password *" type="password" placeholder="Re-enter password" />
+                <Field label="Password *"         value={form.password} onChange={set("password")} type="password" placeholder="Min. 8 characters" />
+                <Field label="Confirm Password *" value={form.confirm}  onChange={set("confirm")}  type="password" placeholder="Re-enter password" />
               </div>
             </div>
 
