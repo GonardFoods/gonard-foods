@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import DeleteAccountButton from "./DeleteAccountButton";
 import { customerSessionOptions, type CustomerSession } from "@/lib/customer-session";
 import { getCustomerById } from "@/lib/customers-store";
 import { getOrders } from "@/lib/orders-store";
@@ -198,6 +199,7 @@ export default async function AccountPage() {
               To update your account details or change your password, contact us at{" "}
               <a href="mailto:gfoods@telus.net" className="underline hover:opacity-60 transition-opacity" style={{ color: "#03033f88" }}>gfoods@telus.net</a>.
             </p>
+            <DeleteAccountButton />
           </div>
 
         </div>
