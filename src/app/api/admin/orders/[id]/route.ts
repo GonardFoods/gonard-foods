@@ -60,10 +60,11 @@ export async function PUT(
   if (!updated) return Response.json({ error: "Order not found." }, { status: 404 });
 
   if (status === "accepted") {
-    // Fire-and-forget — don't fail the response if email errors
-    sendOrderAcceptedEmail(updated).catch((err) =>
-      console.error(`Failed to send accepted email for order ${id}:`, err)
-    );
+    try {
+      await sendOrderAcceptedEmail(updated);
+    } catch (err) {
+      console.error(`Failed to send accepted email for order ${id}:`, err);
+    }
   }
 
   return Response.json(updated);
