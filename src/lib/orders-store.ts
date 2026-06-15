@@ -38,7 +38,7 @@ export interface CustomerInfo {
   country?: string;
 }
 
-export type OrderStatus = "pending" | "invoiced" | "fulfilled" | "cancelled" | "archived";
+export type OrderStatus = "pending" | "accepted" | "invoiced" | "fulfilled" | "cancelled" | "archived";
 
 export interface WebOrder {
   id: string;
@@ -51,10 +51,12 @@ export interface WebOrder {
   notes?: string;
   status: OrderStatus;
   invoiceTotal?: number;
+  acceptedAt?: string;
   invoicedAt?: string;
   fulfilledAt?: string;
   archivedAt?: string;
   sageSynced?: boolean;
+  invoiceEmailSent?: boolean;
 }
 
 export async function getOrders(): Promise<WebOrder[]> {
@@ -93,7 +95,7 @@ export async function updateOrder(
 export function pendingByItemNo(orders: WebOrder[]): Record<string, number> {
   const result: Record<string, number> = {};
   for (const order of orders) {
-    if (order.status !== "pending" && order.status !== "invoiced") continue;
+    if (order.status !== "pending" && order.status !== "accepted" && order.status !== "invoiced") continue;
     for (const item of order.items) {
       result[item.itemNo] = (result[item.itemNo] ?? 0) + item.qty;
     }

@@ -11,7 +11,7 @@ interface ProductOption {
   name: string;
   itemNo: string;
   category: string | null;
-  pricingType: "per_weight" | "per_box";
+  pricingType: "per_weight" | "per_box" | "per_weight_direct";
   weightUnit: "KG" | "LB";
   pricePerUnit: number | null;
 }
@@ -22,6 +22,7 @@ interface OrderItemRow { productId: string; qty: string; }
 
 const STATUS_COLORS: Record<OrderStatus, { bg: string; text: string }> = {
   pending:   { bg: "#fef9c3", text: "#854d0e" },
+  accepted:  { bg: "#ffedd5", text: "#c2410c" },
   invoiced:  { bg: "#dbeafe", text: "#1e40af" },
   fulfilled: { bg: "#dcfce7", text: "#166534" },
   cancelled: { bg: "#fee2e2", text: "#991b1b" },
@@ -30,6 +31,7 @@ const STATUS_COLORS: Record<OrderStatus, { bg: string; text: string }> = {
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending:   "Pending",
+  accepted:  "Accepted",
   invoiced:  "Invoiced",
   fulfilled: "Delivered",
   cancelled: "Cancelled",
@@ -592,11 +594,14 @@ export default function CustomerOrders() {
   }
 
   const filtered = orders.filter((o) => {
-    if (statusFilter === "all") return o.status === "pending" || o.status === "invoiced" || o.status === "fulfilled";
+    if (statusFilter === "all") return o.status === "pending" || o.status === "accepted" || o.status === "invoiced" || o.status === "fulfilled";
     return o.status === statusFilter;
   });
 
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
   const pendingCount = orders.filter((o) => o.status === "pending").length;
+  const acceptedCount = orders.filter((o) => o.status === "accepted").length;
   const invoicedCount = orders.filter((o) => o.status === "invoiced").length;
   const deliveredToday = orders.filter((o) => {
     if (o.status !== "fulfilled" || !o.fulfilledAt) return false;
@@ -642,9 +647,10 @@ export default function CustomerOrders() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Pending",         value: pendingCount,   color: "#854d0e", bg: "#fef9c3" },
+          { label: "Accepted",        value: acceptedCount,  color: "#c2410c", bg: "#ffedd5" },
           { label: "Invoiced",        value: invoicedCount,  color: "#1e40af", bg: "#dbeafe" },
           { label: "Delivered Today", value: deliveredToday, color: "#166534", bg: "#dcfce7" },
         ].map((s) => (
@@ -667,7 +673,7 @@ export default function CustomerOrders() {
 
       {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
-        {(["pending", "invoiced", "fulfilled", "cancelled", "archived", "all"] as const).map((s) => {
+        {(["pending", "accepted", "invoiced", "fulfilled", "cancelled", "archived", "all"] as const).map((s) => {
           const active = statusFilter === s;
           const label = s === "fulfilled" ? "Delivered" : s === "all" ? "Active" : s;
           return (
@@ -707,7 +713,15 @@ export default function CustomerOrders() {
                         {order.customer.company && <div className="text-xs" style={{ color: "#03033f66" }}>{order.customer.company}</div>}
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: "#03033f88" }}>
-                        {order.items.length} line{order.items.length !== 1 ? "s" : ""} · {order.items.reduce((s, i) => s + i.qty, 0)} cases
+                        {(() => {
+                          const total = order.items.reduce((s, i) => s + i.qty, 0);
+                          const allWeightDirect = order.items.every(i => productMap.get(i.productId)?.pricingType === "per_weight_direct");
+                          const anyWeightDirect = order.items.some(i => productMap.get(i.productId)?.pricingType === "per_weight_direct");
+                          const unit = allWeightDirect
+                            ? (productMap.get(order.items[0]?.productId ?? "")?.weightUnit ?? "LB")
+                            : anyWeightDirect ? "items" : "cases";
+                          return `${order.items.length} line${order.items.length !== 1 ? "s" : ""} · ${total} ${unit}`;
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-xs font-bold" style={{ color: "#03033f" }}>
                         {order.invoiceTotal != null ? fmtMoney(order.invoiceTotal) : <span style={{ color: "#03033f33" }}>—</span>}
@@ -720,6 +734,13 @@ export default function CustomerOrders() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                           {order.status === "pending" && (
+                            <>
+                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "accepted")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap" style={{ backgroundColor: "#c2410c", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Accept</button>
+                              <button disabled={updating === order.id} onClick={() => setFinalizing(order)} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap" style={{ backgroundColor: "#1e40af", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Finalize & Invoice</button>
+                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "cancelled")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}>Cancel</button>
+                            </>
+                          )}
+                          {order.status === "accepted" && (
                             <>
                               <button disabled={updating === order.id} onClick={() => setFinalizing(order)} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap" style={{ backgroundColor: "#1e40af", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Finalize & Invoice</button>
                               <button disabled={updating === order.id} onClick={() => setStatus(order.id, "cancelled")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}>Cancel</button>
@@ -752,6 +773,7 @@ export default function CustomerOrders() {
                               {order.customer.phone && <span><strong style={{ color: "#03033f" }}>Phone:</strong> {order.customer.phone}</span>}
                               {order.customer.company && <span><strong style={{ color: "#03033f" }}>Company:</strong> {order.customer.company}</span>}
                               {order.fulfillment && <span><strong style={{ color: "#03033f" }}>Fulfillment:</strong> {order.fulfillment === "delivery" ? `Delivery${order.address ? ` — ${order.address}` : ""}` : "Pick-Up"}</span>}
+                              {order.acceptedAt && <span><strong style={{ color: "#03033f" }}>Accepted:</strong> {fmt(order.acceptedAt)}</span>}
                               {order.invoicedAt && <span><strong style={{ color: "#03033f" }}>Invoiced:</strong> {fmt(order.invoicedAt)}</span>}
                               {order.fulfilledAt && <span><strong style={{ color: "#03033f" }}>Delivered:</strong> {fmt(order.fulfilledAt)}</span>}
                               {order.archivedAt && <span><strong style={{ color: "#03033f" }}>Archived:</strong> {fmt(order.archivedAt)}</span>}
@@ -765,22 +787,47 @@ export default function CustomerOrders() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {order.items.map((item) => (
-                                  <tr key={item.productId} style={{ borderBottom: "1px solid #03033f08" }}>
-                                    <td className="py-1.5 pr-6 font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{item.itemNo}</td>
-                                    <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.name}</td>
-                                    <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.qty}</td>
-                                    <td className="py-1.5 pr-6 text-xs" style={{ color: "#03033f66" }}>
-                                      {item.totalWeight != null ? `${item.totalWeight} ${item.weightUnit ?? ""}` : "—"}
-                                    </td>
-                                    <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>
-                                      {item.pricePerUnit != null ? `$${item.pricePerUnit}/${item.pricingType === "per_box" ? "box" : (item.weightUnit ?? "kg").toLowerCase()}` : "—"}
-                                    </td>
-                                    <td className="py-1.5 font-bold" style={{ color: "#03033f" }}>
-                                      {item.lineTotal != null ? fmtMoney(item.lineTotal) : "—"}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {order.items.map((item) => {
+                                  const product = productMap.get(item.productId);
+                                  const isWeightDirect = product?.pricingType === "per_weight_direct";
+                                  const isFinalized = item.lineTotal != null;
+                                  const weightUnit = item.weightUnit ?? product?.weightUnit ?? "LB";
+
+                                  // Pre-finalization weight-direct: qty stored in cart IS the weight, not cases
+                                  const casesDisplay = isWeightDirect && !isFinalized ? "—" : String(item.qty);
+
+                                  const weightsDisplay = item.totalWeight != null
+                                    ? `${item.totalWeight} ${weightUnit}`
+                                    : isWeightDirect && !isFinalized
+                                    ? `${item.qty} ${product?.weightUnit ?? "LB"}`
+                                    : "—";
+
+                                  const effectivePrice = isFinalized ? item.pricePerUnit : isWeightDirect ? product?.pricePerUnit : null;
+                                  const priceUnit = isFinalized
+                                    ? (item.pricingType === "per_box" ? "box" : weightUnit.toLowerCase())
+                                    : isWeightDirect
+                                    ? (product?.weightUnit ?? "LB").toLowerCase()
+                                    : weightUnit.toLowerCase();
+                                  const priceDisplay = effectivePrice != null ? `$${effectivePrice}/${priceUnit}` : "—";
+
+                                  const effectiveTotal = isFinalized
+                                    ? item.lineTotal
+                                    : isWeightDirect && product?.pricePerUnit != null
+                                    ? item.qty * product.pricePerUnit
+                                    : null;
+                                  const totalDisplay = effectiveTotal != null ? fmtMoney(effectiveTotal) : "—";
+
+                                  return (
+                                    <tr key={item.productId} style={{ borderBottom: "1px solid #03033f08" }}>
+                                      <td className="py-1.5 pr-6 font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>{item.itemNo}</td>
+                                      <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{item.name}</td>
+                                      <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{casesDisplay}</td>
+                                      <td className="py-1.5 pr-6 text-xs" style={{ color: "#03033f66" }}>{weightsDisplay}</td>
+                                      <td className="py-1.5 pr-6" style={{ color: "#03033f" }}>{priceDisplay}</td>
+                                      <td className="py-1.5 font-bold" style={{ color: "#03033f" }}>{totalDisplay}</td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                             {order.invoiceTotal != null && (

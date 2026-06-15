@@ -7,11 +7,19 @@ function auth(req: NextRequest) {
 }
 
 // GET /api/agent/orders?unsynced=true
-// Returns invoiced orders not yet synced to Sage, or all if unsynced omitted
+// GET /api/agent/orders?needsInvoiceEmail=true  — fulfilled + sageSynced + invoiceEmailSent not set
 export async function GET(req: NextRequest) {
   if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const unsynced = req.nextUrl.searchParams.get("unsynced") === "true";
+  const params = req.nextUrl.searchParams;
   const orders = await getOrders();
+
+  if (params.get("needsInvoiceEmail") === "true") {
+    return NextResponse.json(
+      orders.filter((o) => o.status === "fulfilled" && o.sageSynced && !o.invoiceEmailSent)
+    );
+  }
+
+  const unsynced = params.get("unsynced") === "true";
   const result = unsynced
     ? orders.filter((o) => o.status === "invoiced" && !o.sageSynced)
     : orders;

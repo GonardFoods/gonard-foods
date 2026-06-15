@@ -2,6 +2,7 @@ import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions, type AdminSession } from "@/lib/session";
 import { updateOrder, type OrderStatus, type OrderItem } from "@/lib/orders-store";
+import { sendOrderAcceptedEmail } from "@/lib/email";
 
 async function isAdmin() {
   const session = await getIronSession<AdminSession>(await cookies(), sessionOptions);
@@ -20,7 +21,7 @@ export async function PUT(
     invoiceTotal?: number;
   };
 
-  const validStatuses: OrderStatus[] = ["pending", "invoiced", "fulfilled", "cancelled", "archived"];
+  const validStatuses: OrderStatus[] = ["pending", "accepted", "invoiced", "fulfilled", "cancelled", "archived"];
 
   // Finalize (invoiced) — full patch with items + total
   if (body.status === "invoiced") {
@@ -45,10 +46,25 @@ export async function PUT(
     return Response.json({ error: "Invalid status." }, { status: 400 });
   }
   const now = new Date().toISOString();
-  const patch: { status: OrderStatus; fulfilledAt?: string; archivedAt?: string } = { status };
+  const patch: {
+    status: OrderStatus;
+    acceptedAt?: string;
+    fulfilledAt?: string;
+    archivedAt?: string;
+  } = { status };
+  if (status === "accepted") patch.acceptedAt = now;
   if (status === "fulfilled") patch.fulfilledAt = now;
   if (status === "archived") patch.archivedAt = now;
+
   const updated = await updateOrder(id, patch);
   if (!updated) return Response.json({ error: "Order not found." }, { status: 404 });
+
+  if (status === "accepted") {
+    // Fire-and-forget — don't fail the response if email errors
+    sendOrderAcceptedEmail(updated).catch((err) =>
+      console.error(`Failed to send accepted email for order ${id}:`, err)
+    );
+  }
+
   return Response.json(updated);
 }

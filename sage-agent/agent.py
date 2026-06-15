@@ -106,7 +106,7 @@ def open_sage_db():
             config.SAGE_COMPANY_FILE,
             config.SAGE_USERNAME,
             config.SAGE_PASSWORD,
-            False,                  # read-only = False
+            True,                   # openMultiUserMode = True (shared access alongside Sage UI)
             "Gonard Foods Agent",   # application name shown in Sage logs
             "GFAGENT",              # short app code
             1,                      # number of users
@@ -246,18 +246,18 @@ def check_email(processed_ids: set, customers: list) -> list:
 
 
 # ── Sage: ensure customer exists ─────────────────────────────────────────────
-def ensure_sage_customer(order: dict) -> bool:
+def ensure_sage_customer(cust: dict) -> bool:
     """
-    Checks whether the customer exists in Sage by name. Creates them if not.
+    Checks whether a customer exists in Sage by business name. Creates them if not.
     The Sage 'Customer' (Name) field is the business name; 'Contact' is the person's name.
+    `cust` is any dict with name, company, email, phone, and address fields
+    (works for both web Customer records and order CustomerInfo records).
     Returns True if the customer is ready to be invoiced.
     """
     try:
-        cust = order["customer"]
-        # Use company/business name as the Sage customer name; fall back to contact name
         sage_name = (cust.get("company") or cust.get("name", "")).strip()
         if not sage_name:
-            log.warning("Order %s has no customer name — cannot ensure Sage customer", order.get("id"))
+            log.warning("Customer has no name — cannot ensure Sage customer")
             return False
 
         custled = SDKInstanceManager.Instance.OpenCustomerLedger()
@@ -288,7 +288,8 @@ def ensure_sage_customer(order: dict) -> bool:
             SDKInstanceManager.Instance.CloseCustomerLedger()
 
     except Exception:
-        log.error("Failed to ensure Sage customer for order %s:\n%s", order.get("id"), traceback.format_exc())
+        log.error("Failed to ensure Sage customer '%s':\n%s",
+                  (cust.get("company") or cust.get("name", "?")), traceback.format_exc())
         return False
 
 
@@ -300,12 +301,12 @@ def create_sage_invoice(order: dict) -> bool:
     Items are matched by itemNo (must match Sage inventory part codes).
     """
     try:
+        cust = order["customer"]
         # Ensure customer exists in Sage before opening the journal
-        if not ensure_sage_customer(order):
+        if not ensure_sage_customer(cust):
             log.error("Aborting invoice for order %s — could not ensure Sage customer", order.get("id"))
             return False
 
-        cust = order["customer"]
         sage_customer_name = (cust.get("company") or cust.get("name", "")).strip()
 
         sal = SDKInstanceManager.Instance.OpenSalesJournal()
@@ -384,7 +385,67 @@ def record_sage_receipt(payment: dict) -> bool:
         return False
 
 
+# ── Sage: email posted invoice to customer ────────────────────────────────────
+def email_sage_invoice(order: dict) -> bool:
+    """
+    Emails a previously-posted Sage invoice to the customer.
+
+    Uses SalesJournal.LoadByNumber() to retrieve the posted invoice, then calls
+    EmailDocument() to send it via Sage's built-in email.  The customer's email
+    address must be set on their Sage ledger record (ensure_sage_customer already
+    does this when the invoice is first created).
+
+    NOTE: The exact SDK method names (LoadByNumber, EmailDocument) should be
+    verified against the installed SimplySDK version.  If Sage raises a
+    MethodNotFound or similar exception, check the SDK object browser for the
+    correct names.
+    """
+    try:
+        cust = order["customer"]
+        customer_email = cust.get("email", "")
+        if not customer_email:
+            log.warning("Order %s has no customer email — skipping invoice email", order.get("id"))
+            return False
+
+        invoice_number = order["id"][:20]
+
+        # Refresh the customer's email address in Sage in case it changed
+        sage_name = (cust.get("company") or cust.get("name", "")).strip()
+        custled = SDKInstanceManager.Instance.OpenCustomerLedger()
+        try:
+            if custled.LoadByName(sage_name):
+                custled.Email = customer_email
+                custled.Save()
+        finally:
+            SDKInstanceManager.Instance.CloseCustomerLedger()
+
+        sal = SDKInstanceManager.Instance.OpenSalesJournal()
+        try:
+            if not sal.LoadByNumber(invoice_number):
+                log.warning("Could not load Sage invoice %s — skipping email", invoice_number)
+                return False
+            sal.EmailDocument()
+            log.info("Sage invoice emailed for order %s to %s", order["id"], customer_email)
+            return True
+        finally:
+            SDKInstanceManager.Instance.CloseSalesJournal()
+
+    except Exception:
+        log.error("Failed to email Sage invoice for order %s:\n%s", order.get("id"), traceback.format_exc())
+        return False
+
+
 # ── Sync loops ────────────────────────────────────────────────────────────────
+def sync_customers(customers: list):
+    """
+    Ensures every web-app customer account exists as a customer in Sage.
+    Called every cycle so new sign-ups are added automatically.
+    `customers` is the list already fetched at the top of the cycle (reused, no extra API call).
+    """
+    for customer in customers:
+        ensure_sage_customer(customer)
+
+
 def sync_invoiced_orders():
     try:
         orders = api("GET", "/api/agent/orders?unsynced=true")
@@ -400,6 +461,28 @@ def sync_invoiced_orders():
                 log.info("Order %s marked sageSynced", order["id"])
             except Exception:
                 log.error("Could not mark order %s synced:\n%s", order["id"], traceback.format_exc())
+
+
+def send_invoice_emails():
+    """
+    Finds fulfilled orders whose Sage invoice exists (sageSynced=True) but whose
+    invoice email has not yet been sent, then emails each one via Sage and marks
+    invoiceEmailSent on the web app.
+    """
+    try:
+        orders = api("GET", "/api/agent/orders?needsInvoiceEmail=true")
+    except Exception:
+        log.error("Could not fetch orders needing invoice email:\n%s", traceback.format_exc())
+        return
+
+    for order in orders:
+        ok = email_sage_invoice(order)
+        if ok:
+            try:
+                api("PATCH", f"/api/agent/orders/{order['id']}", json={"invoiceEmailSent": True})
+                log.info("Order %s marked invoiceEmailSent", order["id"])
+            except Exception:
+                log.error("Could not mark order %s invoiceEmailSent:\n%s", order["id"], traceback.format_exc())
 
 
 def sync_payments():
@@ -443,8 +526,10 @@ def main():
         if SAGE_AVAILABLE:
             if open_sage_db():
                 try:
+                    sync_customers(customers)
                     sync_invoiced_orders()
                     sync_payments()
+                    send_invoice_emails()
                 finally:
                     close_sage_db()
 
