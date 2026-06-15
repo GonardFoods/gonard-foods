@@ -27,12 +27,14 @@ Logs go to agent.log in this folder and to the terminal.
 import imaplib
 import email
 import email.header
+import json
+import os
 import re
 import sys
 import time
 import logging
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from difflib import SequenceMatcher
 
 import requests
@@ -166,6 +168,28 @@ SUBJECT_RE_FR = re.compile(
     re.IGNORECASE,
 )
 
+# File that persists processed IMAP UIDs across agent restarts.
+# UIDs are stable identifiers assigned by the mail server (unlike sequence numbers).
+PROCESSED_UIDS_FILE = "processed_uids.json"
+
+
+def load_processed_uids() -> set:
+    if os.path.exists(PROCESSED_UIDS_FILE):
+        try:
+            with open(PROCESSED_UIDS_FILE, "r", encoding="utf-8") as f:
+                return set(json.load(f))
+        except Exception:
+            log.warning("Could not load %s — starting fresh", PROCESSED_UIDS_FILE)
+    return set()
+
+
+def save_processed_uids(uids: set):
+    try:
+        with open(PROCESSED_UIDS_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(uids), f)
+    except Exception:
+        log.warning("Could not save %s:\n%s", PROCESSED_UIDS_FILE, traceback.format_exc())
+
 
 def parse_etransfer_subject(subject: str):
     for pattern in (SUBJECT_RE_EN, SUBJECT_RE_FR):
@@ -190,54 +214,77 @@ def decode_subject(msg) -> str:
     return decoded
 
 
-def check_email(processed_ids: set, customers: list) -> list:
-    newly_processed = []
+def check_email(processed_uids: set, customers: list) -> set:
+    """
+    Scans the inbox for Interac e-Transfer notifications using IMAP UIDs.
+
+    Uses UIDs (not sequence numbers) so deduplication survives restarts.
+    Searches ALL emails from the past 90 days — not just UNSEEN — so already-read
+    notifications are still processed.
+    """
+    newly_processed = set()
     try:
+        since_date = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%d-%b-%Y")
+
         with imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT) as imap:
             imap.login(config.IMAP_USER, config.IMAP_PASSWORD)
             imap.select("INBOX")
-            _, data = imap.search(None, 'UNSEEN SUBJECT "Interac"')
-            ids = data[0].split() if data[0] else []
 
-            for msg_id in ids:
-                str_id = msg_id.decode()
-                if str_id in processed_ids:
+            # UID SEARCH returns stable IDs that don't change when other messages are deleted.
+            _, data = imap.uid("SEARCH", None, f'SINCE {since_date} SUBJECT "Interac"')
+            uids = data[0].split() if data[0] else []
+            log.info("Inbox scan: %d Interac email(s) found in the past 90 days", len(uids))
+
+            for uid_bytes in uids:
+                uid = uid_bytes.decode()
+                if uid in processed_uids:
                     continue
 
-                _, raw = imap.fetch(msg_id, "(RFC822)")
+                _, raw = imap.uid("FETCH", uid_bytes, "(RFC822)")
+                if not raw or raw[0] is None:
+                    newly_processed.add(uid)
+                    continue
+
                 msg = email.message_from_bytes(raw[0][1])
                 subject = decode_subject(msg)
                 received_at = datetime.now(timezone.utc).isoformat()
 
                 sender_name, amount = parse_etransfer_subject(subject)
                 if sender_name is None:
-                    newly_processed.append(str_id)
+                    log.info("UID %s: subject didn't match e-transfer pattern — skipping", uid)
+                    newly_processed.add(uid)
                     continue
 
-                log.info("E-transfer: %s  $%.2f", sender_name, amount)
+                log.info("E-transfer: '%s'  $%.2f  (UID %s)", sender_name, amount, uid)
                 customer, score = best_customer_match(sender_name, customers)
 
                 if customer and score >= config.FUZZY_MATCH_THRESHOLD:
                     log.info("Matched → %s (score=%.2f)", customer["name"], score)
-                    source, customer_id, customer_name = "email_auto", customer["id"], customer["name"]
+                    source       = "email_auto"
+                    customer_id  = customer["id"]
+                    customer_name_val = customer["name"]
                 else:
-                    log.info("No match for '%s' (score=%.2f) — flagging unmatched", sender_name, score)
-                    source, customer_id, customer_name = "email_unmatched", None, sender_name
+                    log.info("No match for '%s' (best score=%.2f) — flagging as unmatched", sender_name, score)
+                    source       = "email_unmatched"
+                    customer_id  = None
+                    customer_name_val = sender_name
 
                 try:
                     api("POST", "/api/agent/payments", json={
-                        "customerId": customer_id,
-                        "customerName": customer_name,
-                        "amount": amount,
-                        "receivedAt": received_at,
-                        "source": source,
-                        "note": f"Interac e-Transfer — sender: '{sender_name}'",
+                        "customerId":   customer_id,
+                        "customerName": customer_name_val,
+                        "amount":       amount,
+                        "receivedAt":   received_at,
+                        "source":       source,
+                        "note":         f"Interac e-Transfer — sender: '{sender_name}'",
                     })
-                    log.info("Payment saved (%s)", source)
+                    log.info("Payment posted to web app (%s)", source)
                 except Exception:
-                    log.error("Failed to save payment:\n%s", traceback.format_exc())
+                    log.error("Failed to post payment to web app:\n%s", traceback.format_exc())
+                    # Don't add to processed_uids — retry next cycle
+                    continue
 
-                newly_processed.append(str_id)
+                newly_processed.add(uid)
 
     except Exception:
         log.error("IMAP error:\n%s", traceback.format_exc())
@@ -457,7 +504,8 @@ def sync_payments():
 def main():
     log.info("Gonard Foods Sage agent starting. Poll interval: %ds", config.POLL_INTERVAL_SECONDS)
     load_sage_sdk()
-    processed_email_ids: set = set()
+    processed_uids = load_processed_uids()
+    log.info("Loaded %d previously processed email UIDs from disk", len(processed_uids))
 
     while True:
         # Fetch current customer list for fuzzy name matching
@@ -469,8 +517,10 @@ def main():
             continue
 
         # 1. Email scan
-        new_ids = check_email(processed_email_ids, customers)
-        processed_email_ids.update(new_ids)
+        new_uids = check_email(processed_uids, customers)
+        if new_uids:
+            processed_uids.update(new_uids)
+            save_processed_uids(processed_uids)
 
         # 2. Sage sync
         if SAGE_AVAILABLE:
