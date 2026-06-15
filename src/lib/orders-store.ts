@@ -18,7 +18,7 @@ export interface OrderItem {
   itemNo: string;
   name: string;
   qty: number; // cases
-  pricingType?: "per_weight" | "per_box";
+  pricingType?: "per_weight" | "per_box" | "per_weight_direct";
   weightUnit?: "KG" | "LB";
   totalWeight?: number; // total weight in kg/lb for per_weight products
   pricePerUnit?: number; // $/kg, $/lb, or $/box (fire-sale override or standard)
