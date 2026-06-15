@@ -385,54 +385,6 @@ def record_sage_receipt(payment: dict) -> bool:
         return False
 
 
-# ── Sage: email posted invoice to customer ────────────────────────────────────
-def email_sage_invoice(order: dict) -> bool:
-    """
-    Emails a previously-posted Sage invoice to the customer.
-
-    Uses SalesJournal.LoadByNumber() to retrieve the posted invoice, then calls
-    EmailDocument() to send it via Sage's built-in email.  The customer's email
-    address must be set on their Sage ledger record (ensure_sage_customer already
-    does this when the invoice is first created).
-
-    NOTE: The exact SDK method names (LoadByNumber, EmailDocument) should be
-    verified against the installed SimplySDK version.  If Sage raises a
-    MethodNotFound or similar exception, check the SDK object browser for the
-    correct names.
-    """
-    try:
-        cust = order["customer"]
-        customer_email = cust.get("email", "")
-        if not customer_email:
-            log.warning("Order %s has no customer email — skipping invoice email", order.get("id"))
-            return False
-
-        invoice_number = order["id"][:20]
-
-        # Refresh the customer's email address in Sage in case it changed
-        sage_name = (cust.get("company") or cust.get("name", "")).strip()
-        custled = SDKInstanceManager.Instance.OpenCustomerLedger()
-        try:
-            if custled.LoadByName(sage_name):
-                custled.Email = customer_email
-                custled.Save()
-        finally:
-            SDKInstanceManager.Instance.CloseCustomerLedger()
-
-        sal = SDKInstanceManager.Instance.OpenSalesJournal()
-        try:
-            if not sal.LoadByNumber(invoice_number):
-                log.warning("Could not load Sage invoice %s — skipping email", invoice_number)
-                return False
-            sal.EmailDocument()
-            log.info("Sage invoice emailed for order %s to %s", order["id"], customer_email)
-            return True
-        finally:
-            SDKInstanceManager.Instance.CloseSalesJournal()
-
-    except Exception:
-        log.error("Failed to email Sage invoice for order %s:\n%s", order.get("id"), traceback.format_exc())
-        return False
 
 
 # ── Sync loops ────────────────────────────────────────────────────────────────
@@ -466,8 +418,8 @@ def sync_invoiced_orders():
 def send_invoice_emails():
     """
     Finds fulfilled orders whose Sage invoice exists (sageSynced=True) but whose
-    invoice email has not yet been sent, then emails each one via Sage and marks
-    invoiceEmailSent on the web app.
+    invoice email has not yet been sent, then triggers the web app to send it via
+    Resend and mark invoiceEmailSent in one step.
     """
     try:
         orders = api("GET", "/api/agent/orders?needsInvoiceEmail=true")
@@ -476,13 +428,11 @@ def send_invoice_emails():
         return
 
     for order in orders:
-        ok = email_sage_invoice(order)
-        if ok:
-            try:
-                api("PATCH", f"/api/agent/orders/{order['id']}", json={"invoiceEmailSent": True})
-                log.info("Order %s marked invoiceEmailSent", order["id"])
-            except Exception:
-                log.error("Could not mark order %s invoiceEmailSent:\n%s", order["id"], traceback.format_exc())
+        try:
+            api("POST", f"/api/agent/orders/{order['id']}/invoice-email", json={})
+            log.info("Invoice email sent for order %s", order["id"])
+        except Exception:
+            log.error("Could not send invoice email for order %s:\n%s", order["id"], traceback.format_exc())
 
 
 def sync_payments():
