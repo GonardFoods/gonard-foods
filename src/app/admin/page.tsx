@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getPayments } from "@/lib/payments-store";
 
 const cards = [
   {
@@ -76,9 +77,23 @@ const cards = [
       </svg>
     ),
   },
+  {
+    title: "Payments",
+    description: "View payment history and assign unmatched Interac e-Transfer notifications to customers.",
+    href: "/admin/payments",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+        <line x1="1" y1="10" x2="23" y2="10" />
+      </svg>
+    ),
+  },
 ];
 
-export default function AdminDashboard() {
+export default async function AdminDashboard() {
+  const payments = await getPayments();
+  const unmatchedCount = payments.filter((p) => p.source === "email_unmatched").length;
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -90,6 +105,29 @@ export default function AdminDashboard() {
         </h1>
         <div className="w-10 h-0.5 mt-3" style={{ backgroundColor: "#03033f" }} />
       </div>
+
+      {unmatchedCount > 0 && (
+        <Link
+          href="/admin/payments"
+          className="flex items-center justify-between gap-4 p-4 hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: "#fee2e2", border: "1px solid #fca5a5", textDecoration: "none" }}
+        >
+          <div className="flex items-center gap-3">
+            <span style={{ fontSize: "18px" }}>⚠</span>
+            <div>
+              <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#991b1b", fontFamily: "var(--font-brand), sans-serif" }}>
+                Action Required — {unmatchedCount} Unmatched E-Transfer{unmatchedCount !== 1 ? "s" : ""}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "#b91c1c" }}>
+                The agent received Interac e-Transfers that couldn't be matched to a customer. Click to assign them.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "#991b1b", fontFamily: "var(--font-brand), sans-serif", whiteSpace: "nowrap" }}>
+            View →
+          </span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {cards.map((card) => (
@@ -105,6 +143,14 @@ export default function AdminDashboard() {
                 style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
               >
                 {card.title}
+                {card.href === "/admin/payments" && unmatchedCount > 0 && (
+                  <span
+                    className="ml-2 px-1.5 py-0.5 text-xs font-bold"
+                    style={{ backgroundColor: "#ef4444", color: "#fff", borderRadius: "9999px", fontFamily: "sans-serif", letterSpacing: 0 }}
+                  >
+                    {unmatchedCount}
+                  </span>
+                )}
               </h2>
               <p className="text-xs mt-1 leading-relaxed" style={{ color: "#03033f99" }}>
                 {card.description}
