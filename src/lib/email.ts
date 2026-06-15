@@ -7,7 +7,7 @@ function getResend() {
   return new Resend(key);
 }
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? "Gonard Foods <orders@gonardfoods.ca>";
+const FROM = process.env.RESEND_FROM_EMAIL ?? "Gonard Foods <noreply@gonardfoods.com>";
 
 export async function sendOrderAcceptedEmail(order: WebOrder): Promise<void> {
   const resend = getResend();
