@@ -3,6 +3,7 @@ import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import DeleteAccountButton from "./DeleteAccountButton";
+import { PayButton } from "./PayModal";
 import { customerSessionOptions, type CustomerSession } from "@/lib/customer-session";
 import { getCustomerById } from "@/lib/customers-store";
 import { getOrders } from "@/lib/orders-store";
@@ -47,6 +48,13 @@ export default async function AccountPage() {
 
   const payments = await getPaymentsByCustomer(customer.id);
 
+  // Compute outstanding balance from delivered orders minus payments received
+  const totalInvoiced = myOrders
+    .filter((o) => o.status === "fulfilled")
+    .reduce((sum, o) => sum + (o.invoiceTotal ?? 0), 0);
+  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+  const outstandingBalance = Math.max(0, totalInvoiced - totalPaid);
+
   const { passwordHash: _, ...pub } = customer;
 
   return (
@@ -69,18 +77,18 @@ export default async function AccountPage() {
         <div className="max-w-5xl mx-auto flex flex-col gap-10">
 
           {/* Balance */}
-          {pub.balance > 0 ? (
-            <div className="p-5 flex items-center justify-between" style={{ backgroundColor: "#fef9c3", border: "1px solid #fde68a" }}>
+          {outstandingBalance > 0 ? (
+            <div className="p-5 flex items-center justify-between gap-6" style={{ backgroundColor: "#fef9c3", border: "1px solid #fde68a" }}>
               <div>
                 <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#854d0e", fontFamily: "var(--font-brand), sans-serif" }}>Outstanding Balance</p>
                 <p className="text-3xl font-bold mt-1" style={{ color: "#854d0e", fontFamily: "var(--font-brand), sans-serif" }}>
-                  {fmtMoney(pub.balance)}
+                  {fmtMoney(outstandingBalance)}
+                </p>
+                <p className="text-xs mt-2" style={{ color: "#92400e" }}>
+                  From {myOrders.filter((o) => o.status === "fulfilled").length === 1 ? "1 delivered order" : `${myOrders.filter((o) => o.status === "fulfilled").length} delivered orders`}
                 </p>
               </div>
-              <p className="text-xs leading-relaxed max-w-xs text-right" style={{ color: "#92400e" }}>
-                Please contact us at <a href="tel:4032770991" className="underline">(403) 277-0991</a> or{" "}
-                <a href="mailto:gfoods@telus.net" className="underline">gfoods@telus.net</a> to arrange payment.
-              </p>
+              <PayButton amount={outstandingBalance} />
             </div>
           ) : (
             <div className="p-4 flex items-center gap-3" style={{ backgroundColor: "#dcfce7", border: "1px solid #bbf7d0" }}>
