@@ -106,8 +106,8 @@ export default function AdminPaymentsPage() {
                     className="p-4"
                     style={{ border: "2px solid #fca5a5", backgroundColor: "#fff5f5" }}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex flex-col gap-1">
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap items-start justify-between gap-4">
+                      <div className="flex flex-col gap-1 min-w-0">
                         <p style={{ ...labelStyle, color: "#991b1b" }}>Sender Name (from email)</p>
                         <p className="text-base font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                           {p.customerName}
@@ -119,7 +119,7 @@ export default function AdminPaymentsPage() {
                           <p className="text-xs mt-1" style={{ color: "#03033f66" }}>{p.note}</p>
                         )}
                       </div>
-                      <div className="flex flex-col gap-2" style={{ minWidth: "260px" }}>
+                      <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[260px]">
                         <p style={labelStyle}>Assign to customer</p>
                         <select
                           value={selectedCustomer[p.id] ?? ""}

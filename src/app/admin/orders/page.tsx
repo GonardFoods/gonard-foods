@@ -778,7 +778,8 @@ export default function CustomerOrders() {
                               {order.fulfilledAt && <span><strong style={{ color: "#03033f" }}>Delivered:</strong> {fmt(order.fulfilledAt)}</span>}
                               {order.archivedAt && <span><strong style={{ color: "#03033f" }}>Archived:</strong> {fmt(order.archivedAt)}</span>}
                             </div>
-                            <table className="text-xs border-collapse" style={{ maxWidth: 600 }}>
+                            <div className="overflow-x-auto" style={{ maxWidth: "100%" }}>
+                            <table className="text-xs border-collapse" style={{ minWidth: 600 }}>
                               <thead>
                                 <tr style={{ borderBottom: "1px solid #03033f14" }}>
                                   {["Item No", "Product", "Cases", "Weights", "Price", "Line Total"].map((h) => (
@@ -830,6 +831,7 @@ export default function CustomerOrders() {
                                 })}
                               </tbody>
                             </table>
+                            </div>
                             {order.invoiceTotal != null && (
                               <p className="text-sm font-bold" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                                 Order Total: {fmtMoney(order.invoiceTotal)}

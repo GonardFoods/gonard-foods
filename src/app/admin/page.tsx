@@ -109,12 +109,12 @@ export default async function AdminDashboard() {
       {unmatchedCount > 0 && (
         <Link
           href="/admin/payments"
-          className="flex items-center justify-between gap-4 p-4 hover:opacity-90 transition-opacity"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 p-4 hover:opacity-90 transition-opacity"
           style={{ backgroundColor: "#fee2e2", border: "1px solid #fca5a5", textDecoration: "none" }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3 min-w-0">
             <span style={{ fontSize: "18px" }}>⚠</span>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "#991b1b", fontFamily: "var(--font-brand), sans-serif" }}>
                 Action Required — {unmatchedCount} Unmatched E-Transfer{unmatchedCount !== 1 ? "s" : ""}
               </p>
@@ -123,7 +123,7 @@ export default async function AdminDashboard() {
               </p>
             </div>
           </div>
-          <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "#991b1b", fontFamily: "var(--font-brand), sans-serif", whiteSpace: "nowrap" }}>
+          <span className="text-xs font-bold tracking-widest uppercase flex-shrink-0" style={{ color: "#991b1b", fontFamily: "var(--font-brand), sans-serif" }}>
             View →
           </span>
         </Link>

@@ -13,7 +13,17 @@
   --font-brand: var(--font-brand);
 }
 
-body {
+html, body {
   background: #ffffff;
   color: #03033f;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
