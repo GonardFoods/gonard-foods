@@ -8,6 +8,7 @@ import { useCart } from "@/contexts/CartContext";
 
 const navLinks = [
   { label: "Products", href: "/products" },
+  { label: "Our Team", href: "/team" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];
@@ -20,6 +21,7 @@ const adminMenuItems = [
   { label: "Customer Orders", href: "/admin/orders" },
   { label: "Customers",       href: "/admin/customers" },
   { label: "Inventory",       href: "/admin/inventory" },
+  { label: "Team Photos",     href: "/admin/team" },
 ];
 
 function AdminMenu() {

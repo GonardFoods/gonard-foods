@@ -88,6 +88,21 @@ const cards = [
       </svg>
     ),
   },
+  {
+    title: "Team Photos",
+    description: "Manage team member profiles — names, positions, and photos shown on the public Our Team page.",
+    href: "/admin/team",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="7" r="4" />
+        <path d="M2 21c0-4 3.1-7 7-7" />
+        <circle cx="17" cy="11" r="3" />
+        <path d="M14 21c0-2.5 1.3-4 3-4s3 1.5 3 4" />
+        <line x1="17" y1="6" x2="17" y2="8" />
+        <line x1="16" y1="7" x2="18" y2="7" />
+      </svg>
+    ),
+  },
 ];
 
 export default async function AdminDashboard() {

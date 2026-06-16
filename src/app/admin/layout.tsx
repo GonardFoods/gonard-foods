@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { label: "Customers",        href: "/admin/customers" },
   { label: "Payments",         href: "/admin/payments" },
   { label: "Inventory",        href: "/admin/inventory" },
+  { label: "Team Photos",      href: "/admin/team" },
 ];
 
 function NavLink({ label, href }: { label: string; href: string }) {
