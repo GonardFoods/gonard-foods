@@ -100,9 +100,11 @@ export default function AdminTeamPage() {
     }
     setUploading(true);
     setUploadError("");
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+    const res = await fetch("/api/admin/upload", {
+      method: "POST",
+      headers: { "Content-Type": file.type, "X-Filename": file.name },
+      body: file,
+    });
     if (!res.ok) {
       setUploadError("Upload failed. Please try again.");
       setUploading(false);
