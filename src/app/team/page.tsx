@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { getTeam } from "@/lib/team-store";
 
@@ -60,12 +59,8 @@ export default async function TeamPage() {
                     style={{ paddingBottom: "120%" }}
                   >
                     {m.photoUrl ? (
-                      <Image
-                        src={m.photoUrl}
-                        alt={m.name}
-                        fill
-                        className="object-cover object-top"
-                      />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={m.photoUrl} alt={m.name} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }} />
                     ) : (
                       <div
                         className="absolute inset-0 flex items-center justify-center"

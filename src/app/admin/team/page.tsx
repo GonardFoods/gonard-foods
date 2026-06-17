@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
 
 interface TeamMember {
   id: string;
@@ -179,9 +178,10 @@ export default function AdminTeamPage() {
           {members.map((m) => (
             <div key={m.id} className="bg-white flex flex-col" style={{ border: "1px solid #03033f0d" }}>
               {/* Photo square */}
-              <div className="relative w-full" style={{ paddingBottom: "100%" }}>
+              <div className="relative w-full overflow-hidden" style={{ paddingBottom: "100%" }}>
                 {m.photoUrl ? (
-                  <Image src={m.photoUrl} alt={m.name} fill className="object-cover" />
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.photoUrl} alt={m.name} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
                   <div
                     className="absolute inset-0 flex items-center justify-center"
@@ -289,8 +289,9 @@ export default function AdminTeamPage() {
               <div className="flex flex-col gap-3">
                 <p style={labelStyle}>Photo</p>
                 {draft.photoUrl && (
-                  <div className="relative w-full" style={{ paddingBottom: "100%" }}>
-                    <Image src={draft.photoUrl} alt="" fill className="object-cover" />
+                  <div className="relative w-full overflow-hidden" style={{ paddingBottom: "100%" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={draft.photoUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                   </div>
                 )}
                 <input
