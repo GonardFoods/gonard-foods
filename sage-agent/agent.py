@@ -159,14 +159,50 @@ def best_customer_match(sender_name: str, customers: list):
 
 
 # ── IMAP / Interac e-transfer parsing ────────────────────────────────────────
-SUBJECT_RE_EN = re.compile(
-    r"^(.+?)\s+sent you an Interac e-Transfer for \$([0-9,]+(?:\.[0-9]{2})?)",
-    re.IGNORECASE,
-)
-SUBJECT_RE_FR = re.compile(
-    r"^(.+?)\s+vous a envoy[eé] un virement Interac de ([0-9,]+(?:[.,][0-9]{2})?)\s*\$",
-    re.IGNORECASE,
-)
+# Each entry: (compiled_regex, role_of_group1, role_of_group2)
+# role is "name" or "amount" — tells _apply_patterns which group is which.
+# Uses search() not match() so prefixes like "Interac e-Transfer: " don't block matching.
+_SUBJECT_PATTERNS = [
+    # "{Name} sent you an Interac e-Transfer® for $100.00"
+    (re.compile(
+        r"(.+?)\s+sent you an?\s+Interac\S*\s*e-Transfer\S*\s+for\s+\$([0-9,]+(?:\.[0-9]{1,2})?)",
+        re.IGNORECASE,
+    ), "name", "amount"),
+
+    # "You've received $100.00 from {Name}" — auto-deposit notification
+    (re.compile(
+        r"you(?:'ve| have)?\s+received\s+\$([0-9,]+(?:\.[0-9]{1,2})?)\s+from\s+(.+?)(?:\s*[\(\.\n,]|$)",
+        re.IGNORECASE,
+    ), "amount", "name"),
+
+    # "$100.00 deposited from {Name}"
+    (re.compile(
+        r"\$([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:deposited\s+)?from\s+(.+?)(?:\s*[\(\.\n,]|$)",
+        re.IGNORECASE,
+    ), "amount", "name"),
+
+    # French: "{Name} vous a envoyé un virement Interac de 100,00 $"
+    (re.compile(
+        r"(.+?)\s+vous a envoy[eé] un virement Interac.*?de ([0-9\s,]+(?:[.,][0-9]{1,2})?)\s*\$",
+        re.IGNORECASE,
+    ), "name", "amount"),
+]
+
+# Same idea but applied to plain-text email body as a fallback.
+_BODY_PATTERNS = [
+    (re.compile(
+        r"(.+?)\s+sent you an?\s+(?:Interac\S*\s*)?e-Transfer\S*\s+(?:of\s+)?\$([0-9,]+(?:\.[0-9]{1,2})?)",
+        re.IGNORECASE,
+    ), "name", "amount"),
+    (re.compile(
+        r"you(?:'ve| have)?\s+received\s+\$([0-9,]+(?:\.[0-9]{1,2})?)\s+from\s+(.+?)[\.\n]",
+        re.IGNORECASE,
+    ), "amount", "name"),
+    (re.compile(
+        r"\$([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:has been )?(?:deposited|sent)\b.*?(?:by|from)\s+(.+?)[\.\n]",
+        re.IGNORECASE,
+    ), "amount", "name"),
+]
 
 # File that persists processed IMAP UIDs across agent restarts.
 # UIDs are stable identifiers assigned by the mail server (unlike sequence numbers).
@@ -191,15 +227,52 @@ def save_processed_uids(uids: set):
         log.warning("Could not save %s:\n%s", PROCESSED_UIDS_FILE, traceback.format_exc())
 
 
-def parse_etransfer_subject(subject: str):
-    for pattern in (SUBJECT_RE_EN, SUBJECT_RE_FR):
-        m = pattern.match(subject)
+def _apply_patterns(text: str, patterns: list):
+    """Try each (regex, g1_role, g2_role) pattern against text; return (name, amount) or (None, None)."""
+    for pattern, g1_role, g2_role in patterns:
+        m = pattern.search(text)
         if m:
             try:
-                return m.group(1).strip(), float(m.group(2).replace(",", ""))
-            except ValueError:
+                g1, g2 = m.group(1).strip(), m.group(2).strip()
+                name, amt_str = (g1, g2) if g1_role == "name" else (g2, g1)
+                return name, float(amt_str.replace(",", "").replace(" ", ""))
+            except (ValueError, IndexError, AttributeError):
                 pass
     return None, None
+
+
+def parse_etransfer_subject(subject: str):
+    return _apply_patterns(subject, _SUBJECT_PATTERNS)
+
+
+def get_email_text(msg) -> str:
+    """Extract usable plain text from an email (plain-text part, then HTML with tags stripped)."""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                try:
+                    return part.get_payload(decode=True).decode(
+                        part.get_content_charset() or "utf-8", errors="replace"
+                    )
+                except Exception:
+                    pass
+        for part in msg.walk():
+            if part.get_content_type() == "text/html":
+                try:
+                    html = part.get_payload(decode=True).decode(
+                        part.get_content_charset() or "utf-8", errors="replace"
+                    )
+                    return re.sub(r"<[^>]+>", " ", html)
+                except Exception:
+                    pass
+    else:
+        try:
+            return msg.get_payload(decode=True).decode(
+                msg.get_content_charset() or "utf-8", errors="replace"
+            )
+        except Exception:
+            pass
+    return ""
 
 
 def decode_subject(msg) -> str:
@@ -251,7 +324,15 @@ def check_email(processed_uids: set, customers: list) -> set:
 
                 sender_name, amount = parse_etransfer_subject(subject)
                 if sender_name is None:
-                    log.info("UID %s: subject didn't match e-transfer pattern — skipping", uid)
+                    # Subject didn't match — try the email body as a fallback
+                    body_text = get_email_text(msg)
+                    sender_name, amount = _apply_patterns(body_text, _BODY_PATTERNS)
+
+                if sender_name is None:
+                    log.warning(
+                        "UID %s: could not parse e-transfer — subject was: %r",
+                        uid, subject[:200],
+                    )
                     newly_processed.add(uid)
                     continue
 
