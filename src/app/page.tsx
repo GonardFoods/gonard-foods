@@ -1,5 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
+import { getCategoryPhotos } from "@/lib/homepage-store";
+
+export const dynamic = "force-dynamic";
 
 const features = [
   {
@@ -56,7 +59,8 @@ const productCategories = [
   { name: "Seafood", description: "Basa, salmon, haddock, cod, pompano, prawns, and kingfish", href: "/products?cat=seafood" },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const categoryPhotos = await getCategoryPhotos();
   return (
     <>
       {/* Hero */}
@@ -173,13 +177,24 @@ export default function Home() {
                 href={cat.href}
                 className="bg-white p-8 flex flex-col gap-3 group hover:shadow-lg transition-shadow duration-300"
               >
-                <div
-                  className="w-full aspect-video bg-gray-100 flex items-center justify-center mb-2"
-                  style={{ backgroundColor: "#f0f0f5" }}
-                >
-                  <span className="text-xs tracking-widest uppercase" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
-                    Photo Coming Soon
-                  </span>
+                <div className="relative w-full overflow-hidden mb-2" style={{ paddingBottom: "56.25%" }}>
+                  {categoryPhotos[cat.href.split("=")[1]] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={categoryPhotos[cat.href.split("=")[1]]}
+                      alt={cat.name}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{ backgroundColor: "#f0f0f5" }}
+                    >
+                      <span className="text-xs tracking-widest uppercase" style={{ color: "#03033f44", fontFamily: "var(--font-brand), sans-serif" }}>
+                        Photo Coming Soon
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <h3
                   className="font-bold tracking-widest uppercase text-sm group-hover:opacity-70 transition-opacity"
