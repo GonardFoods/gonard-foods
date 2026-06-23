@@ -18,11 +18,19 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/agent/payments
-// Body: { customerId?, customerName, amount, receivedAt, source, note? }
+// Body: { customerId?, customerName, amount, receivedAt, source, note?, emailUid? }
 // If customerId provided and customer exists, reduces their balance automatically.
+// If emailUid already exists in the store the request is a no-op (returns { duplicate: true }).
 export async function POST(req: NextRequest) {
   if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
+
+  // Server-side deduplication: reject replays of the same IMAP email
+  if (body.emailUid) {
+    const existing = await getPayments();
+    const dupe = existing.find((p) => p.emailUid === body.emailUid);
+    if (dupe) return NextResponse.json({ duplicate: true, id: dupe.id }, { status: 200 });
+  }
 
   let balanceBefore: number | undefined;
   let balanceAfter: number | undefined;
@@ -47,6 +55,7 @@ export async function POST(req: NextRequest) {
     sageSynced: false,
     balanceBefore,
     balanceAfter,
+    ...(body.emailUid ? { emailUid: body.emailUid } : {}),
   };
 
   await savePayment(payment as Parameters<typeof savePayment>[0]);

@@ -28,5 +28,11 @@ SAGE_COMPANY_FILE = r"C:\Users\gfood\Documents\Simply\GonardFoods.SAI"  # <-- up
 SAGE_USERNAME = "sysadmin"             # <-- your Sage username
 SAGE_PASSWORD = "REPLACE_WITH_SAGE_PASSWORD"
 
+# --- Email cutoff ---
+# Only e-transfer emails on or after this date are processed.
+# Set to the date you go live so historical emails are never touched.
+# Format: DD-Mon-YYYY (IMAP SINCE format)
+EMAIL_CUTOFF_DATE = "24-Jun-2026"
+
 # --- Polling ---
 POLL_INTERVAL_SECONDS = 60

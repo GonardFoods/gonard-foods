@@ -297,16 +297,14 @@ def check_email(processed_uids: set, customers: list) -> set:
     """
     newly_processed = set()
     try:
-        since_date = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%d-%b-%Y")
-
         with imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT) as imap:
             imap.login(config.IMAP_USER, config.IMAP_PASSWORD)
             imap.select("INBOX")
 
             # UID SEARCH returns stable IDs that don't change when other messages are deleted.
-            _, data = imap.uid("SEARCH", None, f'SINCE {since_date} SUBJECT "Interac"')
+            _, data = imap.uid("SEARCH", None, f'SINCE {config.EMAIL_CUTOFF_DATE} SUBJECT "Interac"')
             uids = data[0].split() if data[0] else []
-            log.info("Inbox scan: %d Interac email(s) found in the past 90 days", len(uids))
+            log.info("Inbox scan: %d Interac email(s) found since %s", len(uids), config.EMAIL_CUTOFF_DATE)
 
             for uid_bytes in uids:
                 uid = uid_bytes.decode()
@@ -351,15 +349,19 @@ def check_email(processed_uids: set, customers: list) -> set:
                     customer_name_val = sender_name
 
                 try:
-                    api("POST", "/api/agent/payments", json={
+                    resp = api("POST", "/api/agent/payments", json={
                         "customerId":   customer_id,
                         "customerName": customer_name_val,
                         "amount":       amount,
                         "receivedAt":   received_at,
                         "source":       source,
                         "note":         f"Interac e-Transfer — sender: '{sender_name}'",
+                        "emailUid":     uid,
                     })
-                    log.info("Payment posted to web app (%s)", source)
+                    if resp.get("duplicate"):
+                        log.info("UID %s already recorded server-side — skipping", uid)
+                    else:
+                        log.info("Payment posted to web app (%s)", source)
                 except Exception:
                     log.error("Failed to post payment to web app:\n%s", traceback.format_exc())
                     # Don't add to processed_uids — retry next cycle

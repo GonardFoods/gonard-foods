@@ -24,6 +24,7 @@ export interface Payment {
   sageSynced: boolean;
   balanceBefore?: number;
   balanceAfter?: number;
+  emailUid?: string; // IMAP UID — used to deduplicate if agent replays the same email
 }
 
 export async function getPayments(): Promise<Payment[]> {
