@@ -493,11 +493,9 @@ def create_sage_invoice(order: dict) -> bool:
 def record_sage_receipt(payment: dict) -> bool:
     """
     Records a customer receipt (e-transfer payment) in Sage 50.
-    Uses ReceiptsJournal from SimplySDK.ReceivableModule.
     The customer must already exist in Sage.
     """
     try:
-        from SimplySDK.ReceivableModule import ReceiptsJournal  # noqa: F401
         rec = SDKInstanceManager.Instance.OpenReceiptsJournal()
         try:
             rec.SelectAPARLedger(payment["customerName"])
