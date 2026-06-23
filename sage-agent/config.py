@@ -29,8 +29,10 @@ SAGE_USERNAME = "sysadmin"             # <-- your Sage username
 SAGE_PASSWORD = "REPLACE_WITH_SAGE_PASSWORD"
 
 # --- Email cutoff ---
-# Only e-transfer emails on or after this date are processed.
-# Set to the date you go live so historical emails are never touched.
+# Hard earliest date for e-transfer scanning. The agent uses a 45-day rolling
+# window, but will never go further back than this date. Set it to your go-live
+# date so historical emails are never touched no matter how old the rolling
+# window grows.
 # Format: DD-Mon-YYYY (IMAP SINCE format)
 EMAIL_CUTOFF_DATE = "24-Jun-2026"
 

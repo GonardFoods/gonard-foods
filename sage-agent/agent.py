@@ -302,9 +302,14 @@ def check_email(processed_uids: set, customers: list) -> set:
             imap.select("INBOX")
 
             # UID SEARCH returns stable IDs that don't change when other messages are deleted.
-            _, data = imap.uid("SEARCH", None, f'SINCE {config.EMAIL_CUTOFF_DATE} SUBJECT "Interac"')
+            cutoff_dt = datetime.strptime(config.EMAIL_CUTOFF_DATE, "%d-%b-%Y").replace(tzinfo=timezone.utc)
+            rolling_dt = datetime.now(timezone.utc) - timedelta(days=45)
+            since_dt = max(cutoff_dt, rolling_dt)
+            since_date = since_dt.strftime("%d-%b-%Y")
+
+            _, data = imap.uid("SEARCH", None, f'SINCE {since_date} SUBJECT "Interac"')
             uids = data[0].split() if data[0] else []
-            log.info("Inbox scan: %d Interac email(s) found since %s", len(uids), config.EMAIL_CUTOFF_DATE)
+            log.info("Inbox scan: %d Interac email(s) found since %s", len(uids), since_date)
 
             for uid_bytes in uids:
                 uid = uid_bytes.decode()
