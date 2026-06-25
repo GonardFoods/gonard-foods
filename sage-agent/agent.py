@@ -116,13 +116,32 @@ def open_sage_db():
         if not ok:
             log.warning("Sage OpenDatabase returned False — check credentials and file path.")
             return False
-        # Log every method that contains "open", "receipt", or "journal" so we can
-        # identify the correct API name if it changed between SDK versions.
-        relevant = sorted(
-            m for m in dir(SDKInstanceManager.Instance)
-            if any(k in m.lower() for k in ("open", "receipt", "journal"))
-        )
-        log.info("SDK methods (Open/Receipt/Journal): %s", relevant)
+        # ── SDK diagnostics (remove once receipts journal API is confirmed) ──────
+        # 1. What types/enums does SimplySDK export?
+        try:
+            import SimplySDK as _sdk_ns
+            ns_types = sorted(t for t in dir(_sdk_ns)
+                              if any(k in t.lower() for k in ("journal", "receipt", "type", "model")))
+            log.info("SimplySDK namespace (journal/receipt/type/model): %s", ns_types)
+        except Exception as _e:
+            log.info("SimplySDK namespace inspection failed: %s", _e)
+
+        # 2. Probe GetJournalModel — call with no args, then inspect the result
+        try:
+            result = SDKInstanceManager.Instance.GetJournalModel()
+            attrs = [a for a in dir(result) if not a.startswith("_")]
+            log.info("GetJournalModel() returned type=%s  attrs=%s", type(result).__name__, attrs)
+        except Exception as _e:
+            log.info("GetJournalModel() no-arg call failed: %s", _e)
+            # Maybe it's a property, not a method
+            try:
+                gm = SDKInstanceManager.Instance.GetJournalModel
+                log.info("GetJournalModel as property: type=%s  value=%s", type(gm).__name__, gm)
+                attrs = [a for a in dir(gm) if not a.startswith("_")]
+                log.info("GetJournalModel property attrs: %s", attrs)
+            except Exception as _e2:
+                log.info("GetJournalModel property also failed: %s", _e2)
+        # ── end diagnostics ───────────────────────────────────────────────────
         return ok
     except Exception:
         log.error("Sage OpenDatabase failed:\n%s", traceback.format_exc())
