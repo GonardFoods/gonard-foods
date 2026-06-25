@@ -115,6 +115,14 @@ def open_sage_db():
         )
         if not ok:
             log.warning("Sage OpenDatabase returned False — check credentials and file path.")
+            return False
+        # Log every method that contains "open", "receipt", or "journal" so we can
+        # identify the correct API name if it changed between SDK versions.
+        relevant = sorted(
+            m for m in dir(SDKInstanceManager.Instance)
+            if any(k in m.lower() for k in ("open", "receipt", "journal"))
+        )
+        log.info("SDK methods (Open/Receipt/Journal): %s", relevant)
         return ok
     except Exception:
         log.error("Sage OpenDatabase failed:\n%s", traceback.format_exc())
