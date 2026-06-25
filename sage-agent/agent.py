@@ -204,9 +204,9 @@ _BODY_PATTERNS = [
     ), "amount", "name"),
 ]
 
-# File that persists processed IMAP UIDs across agent restarts.
-# UIDs are stable identifiers assigned by the mail server (unlike sequence numbers).
-PROCESSED_UIDS_FILE = "processed_uids.json"
+# Absolute path so the file is always found next to agent.py regardless of the
+# working directory the agent is launched from.
+PROCESSED_UIDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "processed_uids.json")
 
 
 def load_processed_uids() -> set:
@@ -287,13 +287,13 @@ def decode_subject(msg) -> str:
     return decoded
 
 
-def check_email(processed_uids: set, customers: list) -> set:
+def check_email(processed_uids: set, customers: list, sender_map: dict) -> set:
     """
     Scans the inbox for Interac e-Transfer notifications using IMAP UIDs.
 
     Uses UIDs (not sequence numbers) so deduplication survives restarts.
-    Searches ALL emails from the past 90 days — not just UNSEEN — so already-read
-    notifications are still processed.
+    sender_map is a dict of { normalized_sender_name: { customerId, customerName } }
+    populated from previous manual assignments — these take priority over fuzzy matching.
     """
     newly_processed = set()
     try:
@@ -340,18 +340,28 @@ def check_email(processed_uids: set, customers: list) -> set:
                     continue
 
                 log.info("E-transfer: '%s'  $%.2f  (UID %s)", sender_name, amount, uid)
-                customer, score = best_customer_match(sender_name, customers)
 
-                if customer and score >= config.FUZZY_MATCH_THRESHOLD:
-                    log.info("Matched → %s (score=%.2f)", customer["name"], score)
-                    source       = "email_auto"
-                    customer_id  = customer["id"]
-                    customer_name_val = customer["name"]
+                # 1. Check admin-set sender map first (takes absolute priority)
+                mapped = sender_map.get(sender_name.lower().strip())
+                if mapped:
+                    source            = "email_auto"
+                    customer_id       = mapped.get("customerId")
+                    customer_name_val = mapped.get("customerName")
+                    log.info("Sender map hit: '%s' → '%s'", sender_name, customer_name_val)
                 else:
-                    log.info("No match for '%s' (best score=%.2f) — flagging as unmatched", sender_name, score)
-                    source       = "email_unmatched"
-                    customer_id  = None
-                    customer_name_val = sender_name
+                    # 2. Fall back to fuzzy matching against web-app customers
+                    customer, score = best_customer_match(sender_name, customers)
+                    if customer and score >= config.FUZZY_MATCH_THRESHOLD:
+                        log.info("Fuzzy match: '%s' → %s (score=%.2f)", sender_name, customer["name"], score)
+                        source            = "email_auto"
+                        customer_id       = customer["id"]
+                        customer_name_val = customer["name"]
+                    else:
+                        log.info("No match for '%s' (best score=%.2f) — queuing for manual assignment",
+                                 sender_name, score if customer else 0.0)
+                        source            = "email_unmatched"
+                        customer_id       = None
+                        customer_name_val = sender_name
 
                 try:
                     resp = api("POST", "/api/agent/payments", json={
@@ -364,9 +374,9 @@ def check_email(processed_uids: set, customers: list) -> set:
                         "emailUid":     uid,
                     })
                     if resp.get("duplicate"):
-                        log.info("UID %s already recorded server-side — skipping", uid)
+                        log.info("UID %s: already in system (manually assigned or prior run) — skipping", uid)
                     else:
-                        log.info("Payment posted to web app (%s)", source)
+                        log.info("Payment posted (source=%s, customer=%s)", source, customer_name_val)
                 except Exception:
                     log.error("Failed to post payment to web app:\n%s", traceback.format_exc())
                     # Don't add to processed_uids — retry next cycle
@@ -633,8 +643,15 @@ def main():
             time.sleep(config.POLL_INTERVAL_SECONDS)
             continue
 
+        # Fetch admin-set sender mappings (overrides fuzzy matching for known senders)
+        try:
+            sender_map = api("GET", "/api/agent/sender-map")
+        except Exception:
+            log.warning("Could not fetch sender map — fuzzy matching only:\n%s", traceback.format_exc())
+            sender_map = {}
+
         # 1. Email scan
-        new_uids = check_email(processed_uids, customers)
+        new_uids = check_email(processed_uids, customers, sender_map)
         if new_uids:
             processed_uids.update(new_uids)
             save_processed_uids(processed_uids)

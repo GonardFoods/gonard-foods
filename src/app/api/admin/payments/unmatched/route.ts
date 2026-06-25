@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { sessionOptions, type AdminSession } from "@/lib/session";
 import { getPayments, updatePayment } from "@/lib/payments-store";
 import { getCustomerById, updateCustomer } from "@/lib/customers-store";
+import { recordSenderMapping } from "@/lib/sender-map-store";
 
 async function isAdmin() {
   const session = await getIronSession<AdminSession>(await cookies(), sessionOptions);
@@ -40,6 +41,11 @@ export async function POST(req: Request) {
   const payment = all.find((p) => p.id === body.paymentId);
   if (!payment) return Response.json({ error: "Payment not found." }, { status: 404 });
 
+  // The sender name (from the original e-transfer) is stored in payment.customerName
+  // while the payment is unmatched. Persist this mapping so future emails from the
+  // same sender are auto-matched without ever hitting the unmatched queue again.
+  const senderName = payment.customerName;
+
   if (body.customerId) {
     const customer = await getCustomerById(body.customerId);
     if (!customer) return Response.json({ error: "Customer not found." }, { status: 404 });
@@ -56,6 +62,8 @@ export async function POST(req: Request) {
       balanceBefore,
       balanceAfter,
     });
+
+    await recordSenderMapping(senderName, { customerId: body.customerId, customerName: customer.name });
     return Response.json(updated);
   } else {
     // Sage-only: no web account, so no balance update. Agent will post the Sage receipt.
@@ -65,6 +73,8 @@ export async function POST(req: Request) {
       source: "manual_sage",
       sageSynced: false,
     });
+
+    await recordSenderMapping(senderName, { customerId: null, customerName: body.sageCustomerName! });
     return Response.json(updated);
   }
 }
