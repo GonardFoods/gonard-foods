@@ -19,7 +19,7 @@ export interface Payment {
   customerName: string;
   amount: number;
   receivedAt: string; // ISO
-  source: "email_auto" | "email_unmatched" | "manual";
+  source: "email_auto" | "email_unmatched" | "manual" | "manual_sage";
   note?: string;
   sageSynced: boolean;
   balanceBefore?: number;

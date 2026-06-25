@@ -37,6 +37,7 @@ export async function POST(req: Request) {
     createdAt: new Date().toISOString(),
     notes: body.notes?.trim() || undefined,
     balance: body.balance ?? 0,
+    sageStatus: "pending",
   };
   await createCustomer(customer);
   const { passwordHash: _, ...pub } = customer;

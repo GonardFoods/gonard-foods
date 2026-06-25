@@ -17,6 +17,7 @@ export async function PUT(
   const body = await req.json() as {
     name?: string; company?: string; phone?: string;
     notes?: string; balance?: number; password?: string;
+    sageStatus?: "pending" | "linked" | "new"; sageName?: string;
   };
   const patch: Record<string, unknown> = {};
   if (body.name !== undefined) patch.name = body.name.trim();
@@ -25,6 +26,8 @@ export async function PUT(
   if (body.notes !== undefined) patch.notes = body.notes.trim() || undefined;
   if (body.balance !== undefined) patch.balance = Number(body.balance);
   if (body.password?.trim()) patch.passwordHash = await hashPassword(body.password.trim());
+  if (body.sageStatus !== undefined) patch.sageStatus = body.sageStatus;
+  if (body.sageName !== undefined) patch.sageName = body.sageName.trim() || undefined;
 
   const updated = await updateCustomer(id, patch);
   if (!updated) return Response.json({ error: "Customer not found." }, { status: 404 });

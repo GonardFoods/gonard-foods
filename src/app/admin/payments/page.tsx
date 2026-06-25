@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import type { Payment } from "@/lib/payments-store";
 import type { PublicCustomer } from "@/lib/customers-store";
+import type { SageCustomer } from "@/lib/sage-customers-store";
+import SearchableSelect, { type SelectOption } from "@/components/SearchableSelect";
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
@@ -21,6 +23,7 @@ export default function AdminPaymentsPage() {
   const [unmatched, setUnmatched] = useState<Payment[]>([]);
   const [all, setAll] = useState<Payment[]>([]);
   const [customers, setCustomers] = useState<PublicCustomer[]>([]);
+  const [sageCustomers, setSageCustomers] = useState<SageCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<Record<string, string>>({});
   const [assigning, setAssigning] = useState<string | null>(null);
@@ -29,14 +32,16 @@ export default function AdminPaymentsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [unmRes, allRes, custRes] = await Promise.all([
+      const [unmRes, allRes, custRes, sageRes] = await Promise.all([
         fetch("/api/admin/payments/unmatched"),
         fetch("/api/admin/payments"),
         fetch("/api/customers"),
+        fetch("/api/admin/sage-customers"),
       ]);
       if (unmRes.ok) setUnmatched(await unmRes.json());
       if (allRes.ok) setAll(await allRes.json());
       if (custRes.ok) setCustomers(await custRes.json());
+      if (sageRes.ok) setSageCustomers(await sageRes.json());
     } finally {
       setLoading(false);
     }
@@ -44,16 +49,45 @@ export default function AdminPaymentsPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Build searchable option list: web customers first, then Sage-only
+  function buildOptions(paymentId: string): SelectOption[] {
+    const webOpts: SelectOption[] = customers.map((c) => ({
+      value: "c:" + c.id,
+      label: c.name,
+      sublabel: c.company,
+      group: "Customers with account",
+    }));
+
+    // Exclude Sage customers that already have a matching web account
+    const webNames = new Set(customers.map((c) => (c.sageName || c.company || c.name).toLowerCase()));
+    const sageOpts: SelectOption[] = sageCustomers
+      .filter((sc) => !webNames.has(sc.name.toLowerCase()))
+      .map((sc) => ({
+        value: "s:" + sc.name,
+        label: sc.name,
+        group: "Sage only (no web account)",
+      }));
+
+    void paymentId; // used for keying — options are the same for all payments
+    return [...webOpts, ...sageOpts];
+  }
+
   async function assign(paymentId: string) {
-    const customerId = selectedCustomer[paymentId];
-    if (!customerId) return;
+    const raw = selectedCustomer[paymentId];
+    if (!raw) return;
     setAssigning(paymentId);
     setError((prev) => ({ ...prev, [paymentId]: "" }));
     try {
+      let body: object;
+      if (raw.startsWith("c:")) {
+        body = { paymentId, customerId: raw.slice(2) };
+      } else {
+        body = { paymentId, sageCustomerName: raw.slice(2) };
+      }
       const res = await fetch("/api/admin/payments/unmatched", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId, customerId }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -70,9 +104,15 @@ export default function AdminPaymentsPage() {
 
   const matched = all.filter((p) => p.source !== "email_unmatched");
 
+  function sourceLabel(source: string) {
+    if (source === "email_auto") return "Auto (email)";
+    if (source === "manual") return "Assigned";
+    if (source === "manual_sage") return "Assigned (Sage only)";
+    return source;
+  }
+
   return (
     <div className="flex flex-col gap-8">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-[0.1em] uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
           Payments
@@ -97,15 +137,12 @@ export default function AdminPaymentsPage() {
               </div>
               <p className="text-xs mb-4" style={{ color: "#03033f88", lineHeight: 1.6 }}>
                 The agent received these Interac e-Transfers but could not confidently match the sender to a customer.
-                Assign each one to the correct customer — the balance will update immediately and Sage will be synced on the next agent cycle.
+                Assign each one below — the dropdown includes both customers with a web account and Sage-only customers from your imported list.
+                Assigning to a web account also adjusts their balance.
               </p>
               <div className="flex flex-col gap-3">
                 {unmatched.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-4"
-                    style={{ border: "2px solid #fca5a5", backgroundColor: "#fff5f5" }}
-                  >
+                  <div key={p.id} className="p-4" style={{ border: "2px solid #fca5a5", backgroundColor: "#fff5f5" }}>
                     <div className="flex flex-col sm:flex-row sm:flex-wrap items-start justify-between gap-4">
                       <div className="flex flex-col gap-1 min-w-0">
                         <p style={{ ...labelStyle, color: "#991b1b" }}>Sender Name (from email)</p>
@@ -119,20 +156,14 @@ export default function AdminPaymentsPage() {
                           <p className="text-xs mt-1" style={{ color: "#03033f66" }}>{p.note}</p>
                         )}
                       </div>
-                      <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[260px]">
+                      <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[280px]">
                         <p style={labelStyle}>Assign to customer</p>
-                        <select
+                        <SearchableSelect
+                          options={buildOptions(p.id)}
                           value={selectedCustomer[p.id] ?? ""}
-                          onChange={(e) => setSelectedCustomer((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                          style={{ padding: "8px 10px", border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif", fontSize: "12px", backgroundColor: "#fff", outline: "none" }}
-                        >
-                          <option value="">— Select customer —</option>
-                          {customers.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}{c.company ? ` — ${c.company}` : ""}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => setSelectedCustomer((prev) => ({ ...prev, [p.id]: val }))}
+                          placeholder="— Select customer —"
+                        />
                         {error[p.id] && (
                           <p className="text-xs" style={{ color: "#991b1b" }}>{error[p.id]}</p>
                         )}
@@ -152,7 +183,7 @@ export default function AdminPaymentsPage() {
                             fontFamily: "var(--font-brand), sans-serif",
                           }}
                         >
-                          {assigning === p.id ? "Assigning…" : "Assign & Apply Balance"}
+                          {assigning === p.id ? "Assigning…" : "Assign & Apply"}
                         </button>
                       </div>
                     </div>
@@ -194,9 +225,7 @@ export default function AdminPaymentsPage() {
                         <td style={{ ...cellStyle, whiteSpace: "nowrap" }}>{fmt(p.receivedAt)}</td>
                         <td style={cellStyle}>{p.customerName}</td>
                         <td style={{ ...cellStyle, fontWeight: "bold", color: "#166534" }}>{fmtMoney(p.amount)}</td>
-                        <td style={{ ...cellStyle, color: "#03033f66" }}>
-                          {p.source === "email_auto" ? "Auto (email)" : p.source === "manual" ? "Assigned" : p.source}
-                        </td>
+                        <td style={{ ...cellStyle, color: "#03033f66" }}>{sourceLabel(p.source)}</td>
                         <td style={{ ...cellStyle, color: "#03033f66" }}>{p.balanceBefore != null ? fmtMoney(p.balanceBefore) : "—"}</td>
                         <td style={{ ...cellStyle, color: "#03033f66" }}>{p.balanceAfter != null ? fmtMoney(p.balanceAfter) : "—"}</td>
                         <td style={cellStyle}>

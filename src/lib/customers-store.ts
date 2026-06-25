@@ -29,6 +29,13 @@ export interface Customer {
   createdAt: string;
   notes?: string;       // admin-only notes
   balance: number;      // outstanding balance in CAD, set by admin
+  // Sage 50 onboarding state:
+  // "pending"  — new signup, admin hasn't decided yet (skip Sage sync)
+  // "linked"   — existing Sage customer; sageName is their exact ledger name
+  // "new"      — brand new customer; agent will create them in Sage
+  // undefined  — legacy record, treated same as "linked" with derived name
+  sageStatus?: "pending" | "linked" | "new";
+  sageName?: string;
 }
 
 export type PublicCustomer = Omit<Customer, "passwordHash">;

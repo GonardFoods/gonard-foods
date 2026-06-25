@@ -523,11 +523,17 @@ def record_sage_receipt(payment: dict) -> bool:
 # ── Sync loops ────────────────────────────────────────────────────────────────
 def sync_customers(customers: list):
     """
-    Ensures every web-app customer account exists as a customer in Sage.
-    Called every cycle so new sign-ups are added automatically.
-    `customers` is the list already fetched at the top of the cycle (reused, no extra API call).
+    Ensures web-app customers exist in Sage, respecting admin-controlled onboarding state:
+      "pending"  — admin hasn't decided yet; skip so nothing is created prematurely
+      "linked"   — already in Sage; nothing to create
+      "new"      — admin confirmed brand-new; ensure_sage_customer creates them if not present
+      undefined  — legacy record without sageStatus; create as before (backward compat)
     """
     for customer in customers:
+        status = customer.get("sageStatus")
+        if status in ("pending", "linked"):
+            continue
+        # "new" or None → ensure the customer exists in Sage
         ensure_sage_customer(customer)
 
 
@@ -575,22 +581,33 @@ def sync_payments(customers: list):
         log.error("Could not fetch payments:\n%s", traceback.format_exc())
         return
 
-    # Sage customer ledger entries use company name (same logic as ensure_sage_customer).
-    # The payment record only stores the personal name, so look up the full record here.
     customer_by_id = {c["id"]: c for c in customers}
 
     for payment in payments:
-        if not payment.get("customerId"):
-            continue  # unmatched — skip until manually assigned in admin dashboard
+        # Skip genuinely unmatched payments (not yet assigned by admin)
+        if payment.get("source") == "email_unmatched":
+            continue
 
-        customer = customer_by_id.get(payment["customerId"])
+        cust_id = payment.get("customerId")
+        customer = customer_by_id.get(cust_id) if cust_id else None
+
         if customer:
-            sage_name = (customer.get("company") or customer.get("name", "")).strip()
+            # Use the explicit sageName if set, otherwise derive from company/name
+            sage_name = (
+                customer.get("sageName") or
+                (customer.get("company") or customer.get("name", "")).strip()
+            )
         else:
-            # Customer no longer in web app — fall back to stored name and log it
+            # Sage-only customer (manual_sage) or customer no longer in web app:
+            # rely on the customerName stored in the payment record
             sage_name = payment.get("customerName", "")
-            log.warning("Payment %s: customer %s not found in current list — using stored name '%s'",
-                        payment["id"], payment["customerId"], sage_name)
+            if cust_id:
+                log.warning("Payment %s: customer %s not found in current list — using stored name '%s'",
+                            payment["id"], cust_id, sage_name)
+
+        if not sage_name:
+            log.warning("Payment %s has no resolvable customer name — skipping Sage receipt", payment["id"])
+            continue
 
         ok = record_sage_receipt({**payment, "customerName": sage_name})
         if ok:
