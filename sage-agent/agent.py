@@ -499,7 +499,7 @@ def record_sage_receipt(payment: dict) -> bool:
         rec = SDKInstanceManager.Instance.OpenReceiptsJournal()
         try:
             rec.SelectAPARLedger(payment["customerName"])
-            rec.SelectPaidByType("E-Transfer")   # if Sage doesn't have this, try "Cheque"
+            rec.SelectPaidByType("Cheque")
             rec.SetDepositAmount(payment["amount"])
             date_str = (payment.get("receivedAt") or datetime.utcnow().isoformat())[:10]
             rec.SetJournalDate(date_str)
