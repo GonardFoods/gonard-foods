@@ -2,8 +2,14 @@ import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { customerSessionOptions, type CustomerSession } from "@/lib/customer-session";
 import { getCustomerByEmail, verifyPassword } from "@/lib/customers-store";
+import { checkRateLimit, getIP } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
+  const { allowed } = await checkRateLimit(getIP(req), "customer-login", { limit: 5, windowSec: 900 });
+  if (!allowed) {
+    return Response.json({ error: "Too many login attempts. Please try again in 15 minutes." }, { status: 429 });
+  }
+
   const { email, password } = await req.json() as { email?: string; password?: string };
   if (!email?.trim() || !password) {
     return Response.json({ error: "Email and password are required." }, { status: 400 });

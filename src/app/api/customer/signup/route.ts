@@ -2,8 +2,14 @@ import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { customerSessionOptions, type CustomerSession } from "@/lib/customer-session";
 import { getCustomerByEmail, createCustomer, hashPassword, type Customer } from "@/lib/customers-store";
+import { checkRateLimit, getIP } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
+  const { allowed } = await checkRateLimit(getIP(req), "customer-signup", { limit: 10, windowSec: 3600 });
+  if (!allowed) {
+    return Response.json({ error: "Too many signup attempts. Please try again later." }, { status: 429 });
+  }
+
   const body = await req.json() as {
     name?: string; company?: string; email?: string; phone?: string; password?: string;
     street1?: string; street2?: string; city?: string; province?: string; postalCode?: string; country?: string;

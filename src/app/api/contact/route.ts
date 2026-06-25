@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { checkRateLimit, getIP } from "@/lib/rate-limit";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -7,6 +8,11 @@ const FROM = "Gonard Foods Website <noreply@gonardfoods.com>";
 
 export async function POST(req: Request) {
   try {
+    const { allowed } = await checkRateLimit(getIP(req), "contact", { limit: 5, windowSec: 60 });
+    if (!allowed) {
+      return Response.json({ error: "Too many requests. Please wait a moment and try again." }, { status: 429 });
+    }
+
     const { firstName, lastName, email, company, message } = await req.json() as {
       firstName?: string;
       lastName?: string;
