@@ -117,28 +117,25 @@ def open_sage_db():
             log.warning("Sage OpenDatabase returned False — check credentials and file path.")
             return False
         # ── SDK diagnostics (remove once receipts journal API is confirmed) ──────
-        # Use .NET reflection to find the exact signature of GetJournalModel
         try:
+            from System import Enum as _Enum
             inst_type = SDKInstanceManager.Instance.GetType()
-            for m in inst_type.GetMethods():
-                if m.Name == "GetJournalModel":
-                    params = [(p.Name, str(p.ParameterType)) for p in m.GetParameters()]
-                    log.info("GetJournalModel overload — params=%s  return=%s",
-                             params, str(m.ReturnType))
-        except Exception as _e:
-            log.info("GetJournalModel reflection failed: %s", _e)
+            gj = next((m for m in inst_type.GetMethods() if m.Name == "GetJournalModel"), None)
+            if gj:
+                bid_type = gj.GetParameters()[0].ParameterType
+                all_values = list(_Enum.GetValues(bid_type))
+                log.info("All SIMPLY_BOOK_ID values: %s",
+                         [(v.ToString(), int(v)) for v in all_values])
 
-        # Also find every method whose name contains "receipt" via reflection
-        try:
-            inst_type = SDKInstanceManager.Instance.GetType()
-            receipt_methods = [
-                "%s(%s)" % (m.Name, ", ".join(str(p.ParameterType) for p in m.GetParameters()))
-                for m in inst_type.GetMethods()
-                if "receipt" in m.Name.lower()
-            ]
-            log.info("All receipt-related methods: %s", receipt_methods)
+                receipt_vals = [v for v in all_values if "receipt" in v.ToString().lower()]
+                log.info("Receipt BOOK_IDs: %s", [(v.ToString(), int(v)) for v in receipt_vals])
+
+                if receipt_vals:
+                    model = SDKInstanceManager.Instance.GetJournalModel(receipt_vals[0])
+                    model_attrs = [a for a in dir(model) if not a.startswith("_")]
+                    log.info("GenericModel type=%s  attrs=%s", type(model).__name__, model_attrs)
         except Exception as _e:
-            log.info("Receipt method reflection failed: %s", _e)
+            log.info("SIMPLY_BOOK_ID / GenericModel inspection failed: %s", _e)
         # ── end diagnostics ───────────────────────────────────────────────────
         return ok
     except Exception:
