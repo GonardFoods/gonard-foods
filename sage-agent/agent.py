@@ -117,30 +117,28 @@ def open_sage_db():
             log.warning("Sage OpenDatabase returned False — check credentials and file path.")
             return False
         # ── SDK diagnostics (remove once receipts journal API is confirmed) ──────
-        # 1. What types/enums does SimplySDK export?
+        # Use .NET reflection to find the exact signature of GetJournalModel
         try:
-            import SimplySDK as _sdk_ns
-            ns_types = sorted(t for t in dir(_sdk_ns)
-                              if any(k in t.lower() for k in ("journal", "receipt", "type", "model")))
-            log.info("SimplySDK namespace (journal/receipt/type/model): %s", ns_types)
+            inst_type = SDKInstanceManager.Instance.GetType()
+            for m in inst_type.GetMethods():
+                if m.Name == "GetJournalModel":
+                    params = [(p.Name, str(p.ParameterType)) for p in m.GetParameters()]
+                    log.info("GetJournalModel overload — params=%s  return=%s",
+                             params, str(m.ReturnType))
         except Exception as _e:
-            log.info("SimplySDK namespace inspection failed: %s", _e)
+            log.info("GetJournalModel reflection failed: %s", _e)
 
-        # 2. Probe GetJournalModel — call with no args, then inspect the result
+        # Also find every method whose name contains "receipt" via reflection
         try:
-            result = SDKInstanceManager.Instance.GetJournalModel()
-            attrs = [a for a in dir(result) if not a.startswith("_")]
-            log.info("GetJournalModel() returned type=%s  attrs=%s", type(result).__name__, attrs)
+            inst_type = SDKInstanceManager.Instance.GetType()
+            receipt_methods = [
+                "%s(%s)" % (m.Name, ", ".join(str(p.ParameterType) for p in m.GetParameters()))
+                for m in inst_type.GetMethods()
+                if "receipt" in m.Name.lower()
+            ]
+            log.info("All receipt-related methods: %s", receipt_methods)
         except Exception as _e:
-            log.info("GetJournalModel() no-arg call failed: %s", _e)
-            # Maybe it's a property, not a method
-            try:
-                gm = SDKInstanceManager.Instance.GetJournalModel
-                log.info("GetJournalModel as property: type=%s  value=%s", type(gm).__name__, gm)
-                attrs = [a for a in dir(gm) if not a.startswith("_")]
-                log.info("GetJournalModel property attrs: %s", attrs)
-            except Exception as _e2:
-                log.info("GetJournalModel property also failed: %s", _e2)
+            log.info("Receipt method reflection failed: %s", _e)
         # ── end diagnostics ───────────────────────────────────────────────────
         return ok
     except Exception:
