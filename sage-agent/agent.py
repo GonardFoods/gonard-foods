@@ -568,17 +568,31 @@ def send_invoice_emails():
             log.error("Could not send invoice email for order %s:\n%s", order["id"], traceback.format_exc())
 
 
-def sync_payments():
+def sync_payments(customers: list):
     try:
         payments = api("GET", "/api/agent/payments?unsynced=true")
     except Exception:
         log.error("Could not fetch payments:\n%s", traceback.format_exc())
         return
 
+    # Sage customer ledger entries use company name (same logic as ensure_sage_customer).
+    # The payment record only stores the personal name, so look up the full record here.
+    customer_by_id = {c["id"]: c for c in customers}
+
     for payment in payments:
         if not payment.get("customerId"):
             continue  # unmatched — skip until manually assigned in admin dashboard
-        ok = record_sage_receipt(payment)
+
+        customer = customer_by_id.get(payment["customerId"])
+        if customer:
+            sage_name = (customer.get("company") or customer.get("name", "")).strip()
+        else:
+            # Customer no longer in web app — fall back to stored name and log it
+            sage_name = payment.get("customerName", "")
+            log.warning("Payment %s: customer %s not found in current list — using stored name '%s'",
+                        payment["id"], payment["customerId"], sage_name)
+
+        ok = record_sage_receipt({**payment, "customerName": sage_name})
         if ok:
             try:
                 api("PATCH", f"/api/agent/payments/{payment['id']}", json={"sageSynced": True})
@@ -614,7 +628,7 @@ def main():
                 try:
                     sync_customers(customers)
                     sync_invoiced_orders()
-                    sync_payments()
+                    sync_payments(customers)
                     send_invoice_emails()
                 finally:
                     close_sage_db()
