@@ -117,54 +117,23 @@ def open_sage_db():
             log.warning("Sage OpenDatabase returned False — check credentials and file path.")
             return False
         # ── SDK diagnostics (remove once receipts journal API is confirmed) ──────
+        # Find which SelectTransType string opens a receipt/payment transaction
         try:
-            from System import Enum as _Enum
-            inst_type = SDKInstanceManager.Instance.GetType()
-            gj_method = next((m for m in inst_type.GetMethods() if m.Name == "GetJournalModel"), None)
-            bid_type = gj_method.GetParameters()[0].ParameterType
-            all_bid = list(_Enum.GetValues(bid_type))
-            receipts_bid = next(v for v in all_bid if "receipt" in v.ToString().lower())
-
-            # Try GetJournalModel for every value to see which return non-None
-            results = {}
-            for v in all_bid:
+            sj = SDKInstanceManager.Instance.OpenSalesJournal()
+            candidates = [
+                "Sales Receipt", "Receipt", "Customer Receipt",
+                "Payment", "Receive Payment", "Customer Payment",
+                "Sales Invoice",  # baseline — we know this works
+            ]
+            for ts in candidates:
                 try:
-                    m = SDKInstanceManager.Instance.GetJournalModel(v)
-                    results[v.ToString()] = "None" if m is None else type(m).__name__
-                except Exception as e:
-                    results[v.ToString()] = f"ERR:{e}"
-            log.info("GetJournalModel results by ID: %s", results)
-
-            # Probe SalesJournal — find SelectTransType enum values
-            try:
-                sj = SDKInstanceManager.Instance.OpenSalesJournal()
-                sj_type = sj.GetType()
-                for m in sj_type.GetMethods():
-                    if m.Name == "SelectTransType":
-                        p = m.GetParameters()
-                        log.info("SelectTransType signature: %s",
-                                 [(x.Name, str(x.ParameterType)) for x in p])
-                        if p and p[0].ParameterType.IsEnum:
-                            vals = list(_Enum.GetValues(p[0].ParameterType))
-                            log.info("TransType enum values: %s",
-                                     [(v.ToString(), int(v)) for v in vals])
-                log.info("SalesJournal current TransType: %s", sj.GetCurrentTransType())
-                SDKInstanceManager.Instance.CloseSalesJournal()
-            except Exception as e:
-                log.info("SalesJournal probe failed: %s", e)
-
-            # Probe General Journal as backup option
-            try:
-                gj = SDKInstanceManager.Instance.OpenGeneralJournal()
-                log.info("OpenGeneralJournal type=%s  attrs=%s",
-                         type(gj).__name__,
-                         [a for a in dir(gj) if not a.startswith("_")])
-                SDKInstanceManager.Instance.CloseGeneralJournal()
-            except Exception as e:
-                log.info("OpenGeneralJournal probe failed: %s", e)
-
+                    sj.SelectTransType(ts)
+                    log.info("SelectTransType('%s') → current='%s'", ts, sj.GetCurrentTransType())
+                except Exception as te:
+                    log.info("SelectTransType('%s') → error: %s", ts, te)
+            SDKInstanceManager.Instance.CloseSalesJournal()
         except Exception as _e:
-            log.info("Diagnostics failed: %s", _e)
+            log.info("SalesJournal TransType probe failed: %s", _e)
         # ── end diagnostics ───────────────────────────────────────────────────
         return ok
     except Exception:
