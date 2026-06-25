@@ -120,22 +120,46 @@ def open_sage_db():
         try:
             from System import Enum as _Enum
             inst_type = SDKInstanceManager.Instance.GetType()
-            gj = next((m for m in inst_type.GetMethods() if m.Name == "GetJournalModel"), None)
-            if gj:
-                bid_type = gj.GetParameters()[0].ParameterType
-                all_values = list(_Enum.GetValues(bid_type))
-                log.info("All SIMPLY_BOOK_ID values: %s",
-                         [(v.ToString(), int(v)) for v in all_values])
+            gj_method = next((m for m in inst_type.GetMethods() if m.Name == "GetJournalModel"), None)
+            bid_type = gj_method.GetParameters()[0].ParameterType
+            all_bid = list(_Enum.GetValues(bid_type))
+            receipts_bid = next(v for v in all_bid if "receipt" in v.ToString().lower())
 
-                receipt_vals = [v for v in all_values if "receipt" in v.ToString().lower()]
-                log.info("Receipt BOOK_IDs: %s", [(v.ToString(), int(v)) for v in receipt_vals])
+            # Try GetJournalModel for every value to see which return non-None
+            results = {}
+            for v in all_bid:
+                try:
+                    m = SDKInstanceManager.Instance.GetJournalModel(v)
+                    results[v.ToString()] = "None" if m is None else type(m).__name__
+                except Exception as e:
+                    results[v.ToString()] = f"ERR:{e}"
+            log.info("GetJournalModel results by ID: %s", results)
 
-                if receipt_vals:
-                    model = SDKInstanceManager.Instance.GetJournalModel(receipt_vals[0])
-                    model_attrs = [a for a in dir(model) if not a.startswith("_")]
-                    log.info("GenericModel type=%s  attrs=%s", type(model).__name__, model_attrs)
+            # Try: open SalesJournal, then check if RECEIPTS model becomes available
+            try:
+                sj = SDKInstanceManager.Instance.OpenSalesJournal()
+                log.info("OpenSalesJournal type=%s  attrs=%s",
+                         type(sj).__name__,
+                         [a for a in dir(sj) if not a.startswith("_")])
+                m2 = SDKInstanceManager.Instance.GetJournalModel(receipts_bid)
+                log.info("GetJournalModel(RECEIPTS) after OpenSalesJournal: type=%s", type(m2).__name__)
+                if m2 is not None:
+                    log.info("GenericModel attrs: %s", [a for a in dir(m2) if not a.startswith("_")])
+                SDKInstanceManager.Instance.CloseSalesJournal()
+            except Exception as e:
+                log.info("SalesJournal probe failed: %s", e)
+
+            # Try: OpenCustomerLedger and inspect its methods
+            try:
+                cl = SDKInstanceManager.Instance.OpenCustomerLedger()
+                log.info("OpenCustomerLedger type=%s  attrs=%s",
+                         type(cl).__name__,
+                         [a for a in dir(cl) if not a.startswith("_")])
+            except Exception as e:
+                log.info("OpenCustomerLedger probe failed: %s", e)
+
         except Exception as _e:
-            log.info("SIMPLY_BOOK_ID / GenericModel inspection failed: %s", _e)
+            log.info("Diagnostics failed: %s", _e)
         # ── end diagnostics ───────────────────────────────────────────────────
         return ok
     except Exception:
