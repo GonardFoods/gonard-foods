@@ -135,28 +135,33 @@ def open_sage_db():
                     results[v.ToString()] = f"ERR:{e}"
             log.info("GetJournalModel results by ID: %s", results)
 
-            # Try: open SalesJournal, then check if RECEIPTS model becomes available
+            # Probe SalesJournal — find SelectTransType enum values
             try:
                 sj = SDKInstanceManager.Instance.OpenSalesJournal()
-                log.info("OpenSalesJournal type=%s  attrs=%s",
-                         type(sj).__name__,
-                         [a for a in dir(sj) if not a.startswith("_")])
-                m2 = SDKInstanceManager.Instance.GetJournalModel(receipts_bid)
-                log.info("GetJournalModel(RECEIPTS) after OpenSalesJournal: type=%s", type(m2).__name__)
-                if m2 is not None:
-                    log.info("GenericModel attrs: %s", [a for a in dir(m2) if not a.startswith("_")])
+                sj_type = sj.GetType()
+                for m in sj_type.GetMethods():
+                    if m.Name == "SelectTransType":
+                        p = m.GetParameters()
+                        log.info("SelectTransType signature: %s",
+                                 [(x.Name, str(x.ParameterType)) for x in p])
+                        if p and p[0].ParameterType.IsEnum:
+                            vals = list(_Enum.GetValues(p[0].ParameterType))
+                            log.info("TransType enum values: %s",
+                                     [(v.ToString(), int(v)) for v in vals])
+                log.info("SalesJournal current TransType: %s", sj.GetCurrentTransType())
                 SDKInstanceManager.Instance.CloseSalesJournal()
             except Exception as e:
                 log.info("SalesJournal probe failed: %s", e)
 
-            # Try: OpenCustomerLedger and inspect its methods
+            # Probe General Journal as backup option
             try:
-                cl = SDKInstanceManager.Instance.OpenCustomerLedger()
-                log.info("OpenCustomerLedger type=%s  attrs=%s",
-                         type(cl).__name__,
-                         [a for a in dir(cl) if not a.startswith("_")])
+                gj = SDKInstanceManager.Instance.OpenGeneralJournal()
+                log.info("OpenGeneralJournal type=%s  attrs=%s",
+                         type(gj).__name__,
+                         [a for a in dir(gj) if not a.startswith("_")])
+                SDKInstanceManager.Instance.CloseGeneralJournal()
             except Exception as e:
-                log.info("OpenCustomerLedger probe failed: %s", e)
+                log.info("OpenGeneralJournal probe failed: %s", e)
 
         except Exception as _e:
             log.info("Diagnostics failed: %s", _e)
