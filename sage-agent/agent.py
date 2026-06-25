@@ -116,44 +116,11 @@ def open_sage_db():
         if not ok:
             log.warning("Sage OpenDatabase returned False — check credentials and file path.")
             return False
-        # ── SDK diagnostics (remove once receipts journal API is confirmed) ──────
-        # 1. Search all loaded assemblies for any type that has OpenReceiptsJournal
-        try:
-            from System import AppDomain as _AD
-            for _asm in _AD.CurrentDomain.GetAssemblies():
-                try:
-                    for _t in _asm.GetTypes():
-                        _rm = [m.Name for m in _t.GetMethods()
-                               if "openreceipt" in m.Name.lower() or "receiptjournal" in m.Name.lower()]
-                        if _rm:
-                            log.info("Found receipt methods in %s.%s: %s",
-                                     _asm.GetName().Name, _t.Name, _rm)
-                except Exception:
-                    pass
-        except Exception as _e:
-            log.info("Assembly receipt scan failed: %s", _e)
-
-        # 2. DLLs in the SDK folder
-        try:
-            _dlls = [f for f in os.listdir(config.SAGE_SDK_PATH) if f.lower().endswith(".dll")]
-            log.info("DLLs in SDK path: %s", _dlls)
-        except Exception as _e:
-            log.info("DLL listing failed: %s", _e)
-
-        # 3. Try Int16 values 0–9 for SelectTransType
-        try:
-            from System import Int16 as _Int16
-            sj = SDKInstanceManager.Instance.OpenSalesJournal()
-            for _i in range(10):
-                try:
-                    sj.SelectTransType(_Int16(_i))
-                    log.info("SelectTransType(Int16(%d)) → '%s'", _i, sj.GetCurrentTransType())
-                except Exception as _te:
-                    log.info("SelectTransType(Int16(%d)) → error: %s", _i, _te)
-            SDKInstanceManager.Instance.CloseSalesJournal()
-        except Exception as _e:
-            log.info("Int16 TransType probe failed: %s", _e)
-        # ── end diagnostics ───────────────────────────────────────────────────
+        if not hasattr(SDKInstanceManager.Instance, "OpenReceiptsJournal"):
+            log.warning(
+                "Sage 50 2026 SDK: OpenReceiptsJournal API removed. "
+                "Receipt posting is disabled — enter customer receipts manually in Sage."
+            )
         return ok
     except Exception:
         log.error("Sage OpenDatabase failed:\n%s", traceback.format_exc())
@@ -499,7 +466,6 @@ def create_sage_invoice(order: dict) -> bool:
             sal.InvoiceNumber = order["id"][:20]      # web order ID as invoice number
             sal.SelectAPARLedger(sage_customer_name)  # business name, now guaranteed to exist
             sal.SelectPaidByType("Pay Later")         # outstanding balance
-            sal.SelectPaidByType("Pay Later")               # outstanding balance
 
             date_str = (order.get("invoicedAt") or datetime.utcnow().isoformat())[:10]
             sal.SetShipDate(date_str)
@@ -541,30 +507,21 @@ def create_sage_invoice(order: dict) -> bool:
 # ── Sage: record customer receipt ─────────────────────────────────────────────
 def record_sage_receipt(payment: dict) -> bool:
     """
-    Records a customer receipt (e-transfer payment) in Sage 50.
-    The customer must already exist in Sage.
-    """
-    try:
-        rec = SDKInstanceManager.Instance.OpenReceiptsJournal()
-        try:
-            rec.SelectAPARLedger(payment["customerName"])
-            rec.SelectPaidByType("Cheque")
-            rec.SetDepositAmount(payment["amount"])
-            date_str = (payment.get("receivedAt") or datetime.utcnow().isoformat())[:10]
-            rec.SetJournalDate(date_str)
-            rec.SetComment(payment.get("note") or "Interac e-Transfer")
-            ok = rec.Post()
-            if ok:
-                log.info("Sage receipt posted: $%.2f for %s", payment["amount"], payment["customerName"])
-            else:
-                log.warning("Sage receipt Post() returned False for payment %s", payment.get("id"))
-            return ok
-        finally:
-            SDKInstanceManager.Instance.CloseReceiptsJournal()
+    Records a customer receipt in Sage 50.
 
-    except Exception:
-        log.error("Failed to record Sage receipt for payment %s:\n%s", payment.get("id"), traceback.format_exc())
-        return False
+    The Sage 50 2026 SDK removed OpenReceiptsJournal with no replacement.
+    Until Sage restores this API (or we find an equivalent), receipts must be
+    entered manually in Sage: Home → Customers → Receipts Journal.
+    Each pending payment is logged here as a reminder.
+    """
+    log.warning(
+        "Manual Sage entry required — $%.2f from '%s' on %s (payment %s)",
+        payment.get("amount", 0),
+        payment.get("customerName", "?"),
+        (payment.get("receivedAt") or "")[:10],
+        payment.get("id", "?"),
+    )
+    return False
 
 
 
