@@ -117,23 +117,42 @@ def open_sage_db():
             log.warning("Sage OpenDatabase returned False — check credentials and file path.")
             return False
         # ── SDK diagnostics (remove once receipts journal API is confirmed) ──────
-        # Find which SelectTransType string opens a receipt/payment transaction
+        # 1. Search all loaded assemblies for any type that has OpenReceiptsJournal
         try:
-            sj = SDKInstanceManager.Instance.OpenSalesJournal()
-            candidates = [
-                "Sales Receipt", "Receipt", "Customer Receipt",
-                "Payment", "Receive Payment", "Customer Payment",
-                "Sales Invoice",  # baseline — we know this works
-            ]
-            for ts in candidates:
+            from System import AppDomain as _AD
+            for _asm in _AD.CurrentDomain.GetAssemblies():
                 try:
-                    sj.SelectTransType(ts)
-                    log.info("SelectTransType('%s') → current='%s'", ts, sj.GetCurrentTransType())
-                except Exception as te:
-                    log.info("SelectTransType('%s') → error: %s", ts, te)
+                    for _t in _asm.GetTypes():
+                        _rm = [m.Name for m in _t.GetMethods()
+                               if "openreceipt" in m.Name.lower() or "receiptjournal" in m.Name.lower()]
+                        if _rm:
+                            log.info("Found receipt methods in %s.%s: %s",
+                                     _asm.GetName().Name, _t.Name, _rm)
+                except Exception:
+                    pass
+        except Exception as _e:
+            log.info("Assembly receipt scan failed: %s", _e)
+
+        # 2. DLLs in the SDK folder
+        try:
+            _dlls = [f for f in os.listdir(config.SAGE_SDK_PATH) if f.lower().endswith(".dll")]
+            log.info("DLLs in SDK path: %s", _dlls)
+        except Exception as _e:
+            log.info("DLL listing failed: %s", _e)
+
+        # 3. Try Int16 values 0–9 for SelectTransType
+        try:
+            from System import Int16 as _Int16
+            sj = SDKInstanceManager.Instance.OpenSalesJournal()
+            for _i in range(10):
+                try:
+                    sj.SelectTransType(_Int16(_i))
+                    log.info("SelectTransType(Int16(%d)) → '%s'", _i, sj.GetCurrentTransType())
+                except Exception as _te:
+                    log.info("SelectTransType(Int16(%d)) → error: %s", _i, _te)
             SDKInstanceManager.Instance.CloseSalesJournal()
         except Exception as _e:
-            log.info("SalesJournal TransType probe failed: %s", _e)
+            log.info("Int16 TransType probe failed: %s", _e)
         # ── end diagnostics ───────────────────────────────────────────────────
         return ok
     except Exception:
