@@ -507,9 +507,6 @@ def record_sage_receipt(payment: dict) -> bool:
     The Sage 50 2026 SDK removed OpenReceiptsJournal, so we automate the
     Sage 50 UI directly via pywinauto. Sage 50 must be open on this PC.
     """
-    if not SAGE_AVAILABLE:
-        return False
-
     customer_name = payment.get("customerName", "")
     amount        = float(payment.get("amount", 0))
     date_str      = (payment.get("receivedAt") or datetime.utcnow().isoformat())[:10]
@@ -518,8 +515,8 @@ def record_sage_receipt(payment: dict) -> bool:
         log.warning("Skipping receipt — missing customer or zero amount (payment %s)", payment.get("id"))
         return False
 
-    # Try SDK path first (works if Sage 50 2025 SDK is ever restored)
-    if hasattr(SDKInstanceManager.Instance, "OpenReceiptsJournal"):
+    # Try SDK path first (only available in older Sage 50 versions with DB open)
+    if SAGE_AVAILABLE and hasattr(SDKInstanceManager.Instance, "OpenReceiptsJournal"):
         try:
             rec = SDKInstanceManager.Instance.OpenReceiptsJournal()
             try:
@@ -671,16 +668,23 @@ def main():
             processed_uids.update(new_uids)
             save_processed_uids(processed_uids)
 
-        # 2. Sage sync
+        # 2. Sage SDK sync — customers/invoices need the DB open
         if SAGE_AVAILABLE:
             if open_sage_db():
                 try:
                     sync_customers(customers)
                     sync_invoiced_orders()
-                    sync_payments(customers)
                     send_invoice_emails()
                 finally:
                     close_sage_db()
+            else:
+                log.info(
+                    "Sage DB unavailable (Sage 50 is likely open under the same username) "
+                    "— invoice sync skipped this cycle."
+                )
+
+        # 3. Payment receipts — uses pywinauto UI automation; needs Sage running, not SDK DB
+        sync_payments(customers)
 
         log.info("Cycle complete. Sleeping %ds.", config.POLL_INTERVAL_SECONDS)
         time.sleep(config.POLL_INTERVAL_SECONDS)
