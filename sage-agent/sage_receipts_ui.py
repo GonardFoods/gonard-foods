@@ -26,7 +26,24 @@ DELAY          = 0.5  # pause between UI actions
 def _connect():
     """Return a connected Application object for the running Sage 50 window."""
     from pywinauto.application import Application
-    return Application(backend="uia").connect(title_re=SAGE_TITLE_RE, timeout=5)
+    try:
+        return Application(backend="uia").connect(title_re=SAGE_TITLE_RE, timeout=5)
+    except Exception as e:
+        # Multiple Sage windows open (e.g. a login/alert dialog alongside the main window).
+        # Pick the window with the most children — that's the main application, not a dialog.
+        if "2 element" in str(e) or "more element" in str(e).lower():
+            try:
+                import re as _re
+                from pywinauto import Desktop
+                wins = [w for w in Desktop(backend="uia").windows(visible_only=True)
+                        if _re.search(SAGE_TITLE_RE, w.window_text() or "")]
+                wins.sort(key=lambda w: len(w.children()), reverse=True)
+                if wins:
+                    log.debug("Multiple Sage windows — connecting to main: '%s'", wins[0].window_text())
+                    return Application(backend="uia").connect(handle=wins[0].handle, timeout=5)
+            except Exception as inner:
+                log.debug("Fallback connect failed: %s", inner)
+        raise
 
 
 def is_sage_running() -> bool:
@@ -118,12 +135,21 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         )
 
         if not opened:
-            # Fallback: keyboard navigation via Sage's Home screen
-            # In Sage 50 CA, Alt+U opens Customers menu; R typically selects Receipts
-            main.type_keys("%u")         # Alt+U → Customers menu
-            time.sleep(DELAY)
-            main.type_keys("r")          # R → Receive Payment / Receipts
-            time.sleep(DELAY)
+            # Log the home-screen control tree so we can identify the correct button label
+            _dump(main, "Sage home screen — Receipts button not found by label")
+            # Fallback: keyboard navigation via Sage's Home screen.
+            # Re-fetch top_window() in case a dialog appeared and changed focus.
+            try:
+                main = app.top_window()
+                main.set_focus()
+                time.sleep(DELAY)
+                main.type_keys("%u")         # Alt+U → Customers menu
+                time.sleep(DELAY)
+                main.type_keys("r")          # R → Receive Payment / Receipts
+                time.sleep(DELAY)
+            except Exception as kb_err:
+                log.error("Keyboard fallback to open Receipts Journal failed: %s", kb_err)
+                return False
 
         # ── 2. Wait for the Receipts Journal window ───────────────────────
         try:

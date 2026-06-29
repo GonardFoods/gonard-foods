@@ -90,7 +90,8 @@ def load_sage_sdk():
             _mgr.Instance.SetAlertImplementation(SilentAlert())
             log.info("Sage alert handler installed")
         except Exception:
-            log.info("Sage alert handler skipped (SDK version difference) — exceptions will be raised on alerts")
+            log.info("Sage alert handler skipped (SDK version difference) — Sage alerts will show as UI dialogs.\n%s",
+                     traceback.format_exc())
 
         SDKInstanceManager = _mgr
         SAGE_AVAILABLE = True
