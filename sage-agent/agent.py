@@ -116,52 +116,6 @@ def open_sage_db():
         if not ok:
             log.warning("Sage OpenDatabase returned False — check credentials and file path.")
             return False
-        # ── one-time internal scan: look for ReceiptsJournal in all loaded assemblies ──
-        try:
-            import clr as _clr
-            # Load additional Sage DLLs that weren't pulled in by Sage_SA.SDK
-            for _extra in ("Sage_SA.Work", "Sage_SA.Domain", "Sage_SA.DataAccess"):
-                try:
-                    _clr.AddReference(_extra)
-                except Exception:
-                    pass
-
-            from System import AppDomain as _AD, Reflection as _Ref
-            _flags = _Ref.BindingFlags.Public | _Ref.BindingFlags.NonPublic | _Ref.BindingFlags.Instance | _Ref.BindingFlags.Static
-            for _asm in _AD.CurrentDomain.GetAssemblies():
-                try:
-                    for _t in _asm.GetTypes():
-                        if _t.Name.lower() in ("receiptsjournal", "receiptjournal",
-                                               "customerreceipts", "customerreceiptjournal"):
-                            _ms = [m.Name for m in _t.GetMethods(_flags)
-                                   if not m.Name.startswith("get_") and not m.Name.startswith("set_")]
-                            log.info("FOUND internal type %s.%s in %s — methods: %s",
-                                     _t.Namespace, _t.Name, _asm.GetName().Name, _ms)
-                except Exception:
-                    pass
-
-            # Also check private fields/properties on SDKInstanceManager that might expose a receipts object
-            _inst_type = SDKInstanceManager.Instance.GetType()
-            for _f in _inst_type.GetFields(_flags):
-                if "receipt" in _f.Name.lower():
-                    _fval = _f.GetValue(SDKInstanceManager.Instance)
-                    log.info("SDKInstanceManager private field '%s': type=%s value=%s",
-                             _f.Name, _f.FieldType, _fval)
-            for _p in _inst_type.GetProperties(_flags):
-                if "receipt" in _p.Name.lower():
-                    try:
-                        _pval = _p.GetValue(SDKInstanceManager.Instance)
-                        log.info("SDKInstanceManager property '%s': type=%s value=%s",
-                                 _p.Name, _p.PropertyType, _pval)
-                    except Exception:
-                        pass
-            for _m in _inst_type.GetMethods(_flags):
-                if "receipt" in _m.Name.lower():
-                    log.info("SDKInstanceManager method (incl. private): %s(%s)",
-                             _m.Name, ", ".join(str(p.ParameterType) for p in _m.GetParameters()))
-        except Exception as _e:
-            log.info("Internal type scan failed: %s", _e)
-        # ── end scan ──────────────────────────────────────────────────────────
         return ok
     except Exception:
         log.error("Sage OpenDatabase failed:\n%s", traceback.format_exc())
@@ -550,19 +504,43 @@ def record_sage_receipt(payment: dict) -> bool:
     """
     Records a customer receipt in Sage 50.
 
-    The Sage 50 2026 SDK removed OpenReceiptsJournal with no replacement.
-    Until Sage restores this API (or we find an equivalent), receipts must be
-    entered manually in Sage: Home → Customers → Receipts Journal.
-    Each pending payment is logged here as a reminder.
+    The Sage 50 2026 SDK removed OpenReceiptsJournal, so we automate the
+    Sage 50 UI directly via pywinauto. Sage 50 must be open on this PC.
     """
-    log.warning(
-        "Manual Sage entry required — $%.2f from '%s' on %s (payment %s)",
-        payment.get("amount", 0),
-        payment.get("customerName", "?"),
-        (payment.get("receivedAt") or "")[:10],
-        payment.get("id", "?"),
-    )
-    return False
+    if not SAGE_AVAILABLE:
+        return False
+
+    customer_name = payment.get("customerName", "")
+    amount        = float(payment.get("amount", 0))
+    date_str      = (payment.get("receivedAt") or datetime.utcnow().isoformat())[:10]
+
+    if not customer_name or amount <= 0:
+        log.warning("Skipping receipt — missing customer or zero amount (payment %s)", payment.get("id"))
+        return False
+
+    # Try SDK path first (works if Sage 50 2025 SDK is ever restored)
+    if hasattr(SDKInstanceManager.Instance, "OpenReceiptsJournal"):
+        try:
+            rec = SDKInstanceManager.Instance.OpenReceiptsJournal()
+            try:
+                rec.SelectAPARLedger(customer_name)
+                rec.SelectPaidByType("Cheque")
+                rec.SetDepositAmount(amount)
+                rec.SetJournalDate(date_str)
+                rec.SetComment(payment.get("note") or "Interac e-Transfer")
+                ok = rec.Post()
+                if ok:
+                    log.info("Sage receipt posted (SDK): $%.2f for '%s'", amount, customer_name)
+                return ok
+            finally:
+                SDKInstanceManager.Instance.CloseReceiptsJournal()
+        except Exception:
+            log.error("SDK receipt posting failed:\n%s", traceback.format_exc())
+            return False
+
+    # SDK path unavailable (Sage 50 2026+) — use UI automation
+    from sage_receipts_ui import post_receipt
+    return post_receipt(customer_name, amount, date_str)
 
 
 

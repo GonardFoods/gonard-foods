@@ -28,6 +28,7 @@ export default function AdminPaymentsPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Record<string, string>>({});
   const [assigning, setAssigning] = useState<string | null>(null);
   const [error, setError] = useState<Record<string, string>>({});
+  const [markingSynced, setMarkingSynced] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -99,6 +100,20 @@ export default function AdminPaymentsPage() {
       setError((prev) => ({ ...prev, [paymentId]: "Network error." }));
     } finally {
       setAssigning(null);
+    }
+  }
+
+  async function markSynced(paymentId: string) {
+    setMarkingSynced(paymentId);
+    try {
+      await fetch(`/api/admin/payments/${paymentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sageSynced: true }),
+      });
+      await load();
+    } finally {
+      setMarkingSynced(null);
     }
   }
 
@@ -214,7 +229,7 @@ export default function AdminPaymentsPage() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr style={{ borderBottom: "2px solid #03033f14" }}>
-                      {["Date", "Customer", "Amount", "Source", "Balance Before", "Balance After", "Sage"].map((h) => (
+                      {["Date", "Customer", "Amount", "Source", "Balance Before", "Balance After", "Sage", ""].map((h) => (
                         <th key={h} className="px-3 py-3 text-left" style={{ ...labelStyle, whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
@@ -239,6 +254,30 @@ export default function AdminPaymentsPage() {
                           >
                             {p.sageSynced ? "Synced" : "Pending"}
                           </span>
+                        </td>
+                        <td style={cellStyle}>
+                          {!p.sageSynced && (
+                            <button
+                              onClick={() => markSynced(p.id)}
+                              disabled={markingSynced === p.id}
+                              style={{
+                                padding: "4px 10px",
+                                backgroundColor: "transparent",
+                                color: "#03033f88",
+                                border: "1px solid #03033f33",
+                                cursor: "pointer",
+                                fontSize: "10px",
+                                fontWeight: "bold",
+                                letterSpacing: "0.1em",
+                                textTransform: "uppercase",
+                                fontFamily: "var(--font-brand), sans-serif",
+                                whiteSpace: "nowrap",
+                              }}
+                              title="Mark as manually entered in Sage"
+                            >
+                              {markingSynced === p.id ? "…" : "Mark Synced"}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
