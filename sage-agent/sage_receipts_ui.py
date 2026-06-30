@@ -14,8 +14,10 @@ import traceback as _tb
 log = logging.getLogger(__name__)
 
 # Adjust these if your Sage 50 window title differs.
-# Covers both "Sage 50 ..." and the older "Simply Accounting ..." branding.
-SAGE_TITLE_RE       = r"(?i).*(sage 50|simply accounting|sage simply).*"
+# On this install Sage's main window is titled after the data file itself
+# (e.g. "DATA.SAI"), not "Sage 50" or "Simply Accounting" — so match any
+# window ending in .SAI as well as the branded titles.
+SAGE_TITLE_RE       = r"(?i).*(sage 50|simply accounting|sage simply|\.sai)\b.*"
 RECEIPTS_TITLE_RE   = r"(?i).*(receipts journal|receive payment|receipt).*"
 
 WINDOW_TIMEOUT = 15   # seconds to wait for windows
