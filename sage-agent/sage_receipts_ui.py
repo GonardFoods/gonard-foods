@@ -66,17 +66,29 @@ def is_sage_running() -> bool:
         return False
 
 
-def _dump(win, label: str = "controls"):
+def _dump(win, label: str = "controls", depth: int = 5, max_chars: int = 4000):
     """Log the control tree of a window — used for debugging failed automation."""
     try:
         import io, sys
         buf = io.StringIO()
         sys.stdout, old = buf, sys.stdout
-        win.print_control_identifiers(depth=5)
+        win.print_control_identifiers(depth=depth)
         sys.stdout = old
-        log.info("=== %s ===\n%s", label, buf.getvalue()[:4000])
+        log.info("=== %s ===\n%s", label, buf.getvalue()[:max_chars])
     except Exception as e:
         log.debug("_dump failed: %s", e)
+
+
+def _home_contents(main):
+    """
+    Locate the Sage 50 home screen's workflow-diagram pane (auto_id m_HWContents).
+    This Sage version renders the home page as a graphical business-process
+    diagram rather than a classic menu, so the Receipts icon lives inside here.
+    """
+    try:
+        return main.child_window(auto_id="m_HWContents", control_type="Pane")
+    except Exception:
+        return None
 
 
 def _try_click(parent, patterns, control_types=("Hyperlink", "Button", "ListItem")):
@@ -147,21 +159,21 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         )
 
         if not opened:
-            # Log the home-screen control tree so we can identify the correct button label
-            _dump(main, "Sage home screen — Receipts button not found by label")
-            # Fallback: keyboard navigation via Sage's Home screen.
-            # Re-fetch top_window() in case a dialog appeared and changed focus.
-            try:
-                main = app.top_window()
-                main.set_focus()
-                time.sleep(DELAY)
-                main.type_keys("%u")         # Alt+U → Customers menu
-                time.sleep(DELAY)
-                main.type_keys("r")          # R → Receive Payment / Receipts
-                time.sleep(DELAY)
-            except Exception as kb_err:
-                log.error("Keyboard fallback to open Receipts Journal failed: %s", kb_err)
-                return False
+            # This Sage version renders the home screen as a graphical workflow
+            # diagram (no classic menu bar), so dump the m_HWContents pane
+            # specifically — much deeper and larger than a generic window dump —
+            # to find the actual Receipts icon's name/auto_id.
+            hw = _home_contents(main)
+            if hw is not None:
+                _dump(hw, "Sage home workflow pane (m_HWContents)", depth=12, max_chars=20000)
+            else:
+                _dump(main, "Sage home screen — Receipts button not found by label", depth=8, max_chars=20000)
+            log.error(
+                "Could not find the Receipts icon on the Sage home screen by label. "
+                "No safe keyboard fallback exists for this Sage UI — see the dump above "
+                "to identify the correct control name/auto_id."
+            )
+            return False
 
         # ── 2. Wait for the Receipts Journal window ───────────────────────
         try:
