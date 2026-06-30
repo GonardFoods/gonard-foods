@@ -71,7 +71,15 @@ def load_sage_sdk():
 
         # Try to set up a silent alert handler; skip if the alert API differs in this SDK version
         try:
-            from SimplySDK.Support import SDKAlert, AlertResult
+            from SimplySDK.Support import SDKAlert
+            try:
+                from SimplySDK.Support import AlertResult
+            except ImportError:
+                # Sage 50 2026 SDK removed AlertResult from SimplySDK.Support — use integer fallback
+                class AlertResult:  # type: ignore[no-redef]
+                    YES = 1
+                    NO = 2
+                    CANCEL = 3
 
             class SilentAlert(SDKAlert):
                 def AskAlert(self, message):
@@ -90,8 +98,8 @@ def load_sage_sdk():
             _mgr.Instance.SetAlertImplementation(SilentAlert())
             log.info("Sage alert handler installed")
         except Exception:
-            log.info("Sage alert handler skipped (SDK version difference) — Sage alerts will show as UI dialogs.\n%s",
-                     traceback.format_exc())
+            log.warning("Sage alert handler could not be installed — Sage alerts will show as UI dialogs.\n%s",
+                        traceback.format_exc())
 
         SDKInstanceManager = _mgr
         SAGE_AVAILABLE = True

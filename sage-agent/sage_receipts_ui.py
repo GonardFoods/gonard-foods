@@ -13,9 +13,10 @@ import traceback as _tb
 
 log = logging.getLogger(__name__)
 
-# Adjust these if your Sage 50 window title differs
-SAGE_TITLE_RE       = r".*Sage 50.*"
-RECEIPTS_TITLE_RE   = r".*Receipts Journal.*|.*Receive Payment.*"
+# Adjust these if your Sage 50 window title differs.
+# Covers both "Sage 50 ..." and the older "Simply Accounting ..." branding.
+SAGE_TITLE_RE       = r"(?i).*(sage 50|simply accounting|sage simply).*"
+RECEIPTS_TITLE_RE   = r"(?i).*(receipts journal|receive payment|receipt).*"
 
 WINDOW_TIMEOUT = 15   # seconds to wait for windows
 DELAY          = 0.5  # pause between UI actions
@@ -43,6 +44,15 @@ def _connect():
                     return Application(backend="uia").connect(handle=wins[0].handle, timeout=5)
             except Exception as inner:
                 log.debug("Fallback connect failed: %s", inner)
+
+        # Log all visible window titles to help diagnose a title mismatch
+        try:
+            from pywinauto import Desktop
+            titles = [w.window_text() for w in Desktop(backend="uia").windows(visible_only=True)
+                      if w.window_text()]
+            log.info("_connect failed. Visible windows: %s", titles)
+        except Exception:
+            pass
         raise
 
 
@@ -113,7 +123,7 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
     try:
         app = _connect()
     except Exception as e:
-        log.warning("Sage 50 not running — receipt skipped for '%s': %s", customer_name, e)
+        log.warning("Sage 50 not running — receipt skipped for '%s': %r", customer_name, e)
         return False
 
     rcpts_win = None
