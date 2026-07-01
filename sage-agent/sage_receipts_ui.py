@@ -91,20 +91,21 @@ def _home_contents(main):
         return None
 
 
-def _find_by_traversal(win, title: str, control_type_substr: str = "Pane"):
+def _find_by_traversal(win, title: str):
     """
     Find a descendant by walking the UIA tree with the tree-walker API.
 
     UIA's FindFirst condition search (used by child_window) fails on some
     WinForms owner-drawn controls that appear in print_control_identifiers but
     are not reachable via property-condition queries.  Traversal always works.
+
+    Note: element_info.control_type returns an integer (e.g. 50033 for Pane),
+    not a string — so we match only on title to avoid a false type mismatch.
     """
     try:
         for desc in win.descendants():
             try:
-                if (desc.window_text() == title and
-                        control_type_substr.lower() in
-                        str(desc.element_info.control_type).lower()):
+                if desc.window_text() == title:
                     return desc
             except Exception:
                 pass
@@ -175,7 +176,7 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         opened = False
         hw = _home_contents(main)
         search_root = hw if hw is not None else main
-        icon = _find_by_traversal(search_root, "Receipts", "Pane")
+        icon = _find_by_traversal(search_root, "Receipts")
         if icon is not None:
             try:
                 icon.click_input()
