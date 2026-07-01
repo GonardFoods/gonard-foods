@@ -147,16 +147,24 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         main.set_focus()
         time.sleep(DELAY)
 
-        # Try every likely label for the Receipts Journal shortcut
-        opened = _try_click(
-            main,
-            patterns=[
-                r"(?i).*receive payment.*",
-                r"(?i).*receipts journal.*",
-                r"(?i).*receipt.*",
-            ],
-            control_types=("Hyperlink", "Button", "ListItem", "TreeItem", "Custom"),
-        )
+        # Click the "Receipts" task icon on the Sage 50 home-screen workflow diagram.
+        # Diagnostic dump confirmed the icon is:
+        #   Pane title="Receipts", auto_id="m_taskPicture", control_type="Pane"
+        opened = False
+        try:
+            icon = main.child_window(title="Receipts", auto_id="m_taskPicture", control_type="Pane")
+            icon.click_input()
+            opened = True
+        except Exception:
+            pass
+
+        # Fallback: generic search covering other Sage builds / UI variants
+        if not opened:
+            opened = _try_click(
+                main,
+                patterns=[r"(?i)^receipts$", r"(?i).*receive payment.*", r"(?i).*receipts journal.*"],
+                control_types=("Pane", "Hyperlink", "Button", "ListItem", "TreeItem", "Custom"),
+            )
 
         if not opened:
             # This Sage version renders the home screen as a graphical workflow
