@@ -233,15 +233,23 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         rcpts_win.set_focus()
         time.sleep(DELAY)
 
+        # Dump the Receipts Journal control tree so we can identify exact field names
+        # and fix amount entry in the next iteration without another diagnostic run.
+        _dump(rcpts_win, "Receipts Journal controls", depth=8, max_chars=20000)
+
         # ── 3. Select customer ────────────────────────────────────────────
-        # The customer field is the first ComboBox/Edit at the top of the form.
+        # Must use type_keys (real keyboard events) — set_edit_text() bypasses the
+        # keyboard layer and never fires Sage's autocomplete/lookup for the customer.
         customer_found = False
         for idx in range(3):  # try the first few edit/combo controls
             for ct in ("ComboBox", "Edit"):
                 try:
                     f = rcpts_win.child_window(control_type=ct, found_index=idx)
-                    f.set_edit_text(customer_name)
-                    f.type_keys("{TAB}")
+                    f.click_input()
+                    time.sleep(DELAY)
+                    f.type_keys(customer_name, with_spaces=True)
+                    time.sleep(DELAY * 2)   # let Sage autocomplete / dropdown appear
+                    f.type_keys("{TAB}")    # confirm selection and advance focus
                     customer_found = True
                     break
                 except Exception:
@@ -305,12 +313,17 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
                 except Exception:
                     pass
 
-        # Approach C: Tab navigation from the top — tab past customer/date to amount
+        # Approach C would be Tab navigation, but without knowing the exact Tab count
+        # (determined from the dump above) it would enter the amount in the wrong field.
+        # Return False here rather than post garbage data and falsely mark sageSynced.
         if not amount_set:
-            log.info("Trying Tab navigation to reach Amount Received field…")
-            rcpts_win.type_keys("{TAB}" * 4)   # tab past known fields
-            rcpts_win.type_keys(amount_str)
-            amount_set = True   # optimistic — we'll see if Post succeeds
+            log.warning(
+                "Amount Received field not found for '%s' $%.2f — "
+                "see 'Receipts Journal controls' dump above to identify the correct "
+                "control name/path, then update Approach A or B accordingly.",
+                customer_name, amount,
+            )
+            return False
 
         time.sleep(DELAY)
 
@@ -339,22 +352,55 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
 
         time.sleep(DELAY * 2)
 
-        # Dismiss any confirmation dialog (Post confirmation, duplicate warning, etc.)
-        for dlg_re in (r"(?i).*confirm.*", r"(?i).*post.*", r"(?i).*sage 50.*",
-                       r"(?i).*receipt.*", r"(?i).*warning.*"):
-            try:
-                dlg = app.window(title_re=dlg_re)
-                dlg.wait("visible", timeout=3)
-                for btn_name in ("Yes", "OK", "Post"):
+        # Check for dialogs after clicking Post.
+        # Error dialogs (validation failures) must abort and return False so the
+        # payment is NOT marked sageSynced.  Confirmation dialogs ("Post anyway?")
+        # get a "Yes" and the receipt is considered posted.
+        ERROR_KEYWORDS = ("must", "error", "invalid", "cannot", "please select",
+                          "first select", "no customer")
+        try:
+            import re as _re
+            from pywinauto import Desktop
+            SAGE_DLG_RE = r"(?i)(sage|simply|receipt|confirm|error|warning|message)"
+            for dlg_win in Desktop(backend="uia").windows(visible_only=True):
+                title = dlg_win.window_text() or ""
+                if not _re.search(SAGE_DLG_RE, title):
+                    continue
+                # Collect all text in the dialog body
+                body_parts = []
+                try:
+                    for desc in dlg_win.descendants():
+                        try:
+                            t = (desc.window_text() or "").strip()
+                            if t:
+                                body_parts.append(t)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                body = " ".join(body_parts)
+                body_lower = body.lower()
+                is_error = any(kw in body_lower for kw in ERROR_KEYWORDS)
+
+                # Dismiss the dialog
+                for btn_name in ("OK", "Yes", "Post", "Close"):
                     try:
-                        dlg.child_window(title=btn_name, control_type="Button").click_input()
+                        dlg_win.child_window(title=btn_name, control_type="Button").click_input()
                         break
                     except Exception:
                         pass
                 time.sleep(DELAY)
+
+                if is_error:
+                    log.error(
+                        "Sage error dialog after Post for '%s' — not posted. Dialog text: %s",
+                        customer_name, body.strip()[:400],
+                    )
+                    return False
+                # Non-error dialog (e.g. "Post confirmation") — fall through to success
                 break
-            except Exception:
-                pass
+        except Exception as _dlg_e:
+            log.debug("Dialog scan error: %s", _dlg_e)
 
         log.info("Sage receipt posted (UI): $%.2f for '%s' on %s",
                  amount, customer_name, date_str)
