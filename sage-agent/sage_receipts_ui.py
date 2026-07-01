@@ -91,6 +91,28 @@ def _home_contents(main):
         return None
 
 
+def _find_by_traversal(win, title: str, control_type_substr: str = "Pane"):
+    """
+    Find a descendant by walking the UIA tree with the tree-walker API.
+
+    UIA's FindFirst condition search (used by child_window) fails on some
+    WinForms owner-drawn controls that appear in print_control_identifiers but
+    are not reachable via property-condition queries.  Traversal always works.
+    """
+    try:
+        for desc in win.descendants():
+            try:
+                if (desc.window_text() == title and
+                        control_type_substr.lower() in
+                        str(desc.element_info.control_type).lower()):
+                    return desc
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return None
+
+
 def _try_click(parent, patterns, control_types=("Hyperlink", "Button", "ListItem")):
     """
     Try to find and click a child control matching any (pattern, control_type) pair.
@@ -148,26 +170,35 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         time.sleep(DELAY)
 
         # Click the "Receipts" task icon on the Sage 50 home-screen workflow diagram.
-        # The icon is a Pane titled "Receipts" (auto_id m_taskPicture, but that auto_id
-        # is shared by all task icons so we omit it to avoid confusing pywinauto).
+        # child_window()/FindFirst fails on these owner-drawn WinForms panes even
+        # though they appear in print_control_identifiers — use tree-walker traversal.
         opened = False
-
-        # Try single-click on the icon Pane, then its text label, then double-click each.
-        for _title, _ct in [
-            ("Receipts", "Pane"),
-            ("Receipts", "Text"),
-        ]:
-            for _method in ("click_input", "double_click_input"):
+        hw = _home_contents(main)
+        search_root = hw if hw is not None else main
+        icon = _find_by_traversal(search_root, "Receipts", "Pane")
+        if icon is not None:
+            try:
+                icon.click_input()
+                opened = True
+                log.debug("Receipts icon clicked via traversal (click_input)")
+            except Exception:
                 try:
-                    ctrl = main.child_window(title=_title, control_type=_ct, found_index=0)
-                    getattr(ctrl, _method)()
+                    icon.double_click_input()
                     opened = True
-                    log.debug("Receipts icon opened via %s on control_type=%s title=%s", _method, _ct, _title)
-                    break
-                except Exception as _e:
-                    log.debug("Receipts click attempt (%s, %s, %s) failed: %r", _method, _ct, _title, _e)
-            if opened:
-                break
+                    log.debug("Receipts icon clicked via traversal (double_click_input)")
+                except Exception:
+                    # Last resort: send a raw mouse click to the icon's centre coords
+                    try:
+                        from pywinauto import mouse
+                        r = icon.rectangle()
+                        cx, cy = (r.left + r.right) // 2, (r.top + r.bottom) // 2
+                        main.set_focus()
+                        time.sleep(DELAY)
+                        mouse.click(button="left", coords=(cx, cy))
+                        opened = True
+                        log.debug("Receipts icon clicked via raw mouse at (%d, %d)", cx, cy)
+                    except Exception as _e:
+                        log.warning("All Receipts icon click strategies failed: %r", _e)
 
         if not opened:
             # This Sage version renders the home screen as a graphical workflow
