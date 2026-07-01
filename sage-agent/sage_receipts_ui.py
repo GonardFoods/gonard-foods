@@ -148,23 +148,26 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         time.sleep(DELAY)
 
         # Click the "Receipts" task icon on the Sage 50 home-screen workflow diagram.
-        # Diagnostic dump confirmed the icon is:
-        #   Pane title="Receipts", auto_id="m_taskPicture", control_type="Pane"
+        # The icon is a Pane titled "Receipts" (auto_id m_taskPicture, but that auto_id
+        # is shared by all task icons so we omit it to avoid confusing pywinauto).
         opened = False
-        try:
-            icon = main.child_window(title="Receipts", auto_id="m_taskPicture", control_type="Pane")
-            icon.click_input()
-            opened = True
-        except Exception:
-            pass
 
-        # Fallback: generic search covering other Sage builds / UI variants
-        if not opened:
-            opened = _try_click(
-                main,
-                patterns=[r"(?i)^receipts$", r"(?i).*receive payment.*", r"(?i).*receipts journal.*"],
-                control_types=("Pane", "Hyperlink", "Button", "ListItem", "TreeItem", "Custom"),
-            )
+        # Try single-click on the icon Pane, then its text label, then double-click each.
+        for _title, _ct in [
+            ("Receipts", "Pane"),
+            ("Receipts", "Text"),
+        ]:
+            for _method in ("click_input", "double_click_input"):
+                try:
+                    ctrl = main.child_window(title=_title, control_type=_ct, found_index=0)
+                    getattr(ctrl, _method)()
+                    opened = True
+                    log.debug("Receipts icon opened via %s on control_type=%s title=%s", _method, _ct, _title)
+                    break
+                except Exception as _e:
+                    log.debug("Receipts click attempt (%s, %s, %s) failed: %r", _method, _ct, _title, _e)
+            if opened:
+                break
 
         if not opened:
             # This Sage version renders the home screen as a graphical workflow
