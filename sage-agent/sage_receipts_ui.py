@@ -166,17 +166,42 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
     rcpts_win = None
     try:
         # ── 1. Open Receipts Journal from the home screen ─────────────────
+        # Close any leftover Receipts Journal from a previous failed cycle.
+        # If it remains open and is on top, top_window() returns the journal
+        # window instead of the home screen and the Receipts icon traversal fails.
+        try:
+            leftover = app.window(title_re=RECEIPTS_TITLE_RE)
+            if leftover.exists(timeout=2) and leftover.is_visible():
+                log.info("Closing leftover Receipts Journal before starting fresh")
+                leftover.close()
+                time.sleep(DELAY * 2)
+        except Exception:
+            pass
+
         main = app.top_window()
         main.set_focus()
         time.sleep(DELAY)
 
         # Click the "Receipts" task icon on the Sage 50 home-screen workflow diagram.
-        # child_window()/FindFirst fails on these owner-drawn WinForms panes even
-        # though they appear in print_control_identifiers — use tree-walker traversal.
+        # The icon lives under the Receivables tab — navigate there first if needed.
         opened = False
         hw = _home_contents(main)
         search_root = hw if hw is not None else main
         icon = _find_by_traversal(search_root, "Receipts")
+
+        if icon is None:
+            # Try clicking the Receivables tab to make the Receipts icon visible
+            receivables = _find_by_traversal(main, "Receivables")
+            if receivables is not None:
+                try:
+                    receivables.click_input()
+                    time.sleep(DELAY * 2)
+                    hw = _home_contents(main)
+                    search_root = hw if hw is not None else main
+                    icon = _find_by_traversal(search_root, "Receipts")
+                    log.debug("Navigated to Receivables tab; retrying Receipts icon")
+                except Exception:
+                    pass
         if icon is not None:
             try:
                 icon.click_input()
