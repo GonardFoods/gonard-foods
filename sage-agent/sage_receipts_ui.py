@@ -238,27 +238,19 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         _dump(rcpts_win, "Receipts Journal controls", depth=8, max_chars=20000)
 
         # ── 3. Select customer ────────────────────────────────────────────
-        # Must use type_keys (real keyboard events) — set_edit_text() bypasses the
-        # keyboard layer and never fires Sage's autocomplete/lookup for the customer.
-        customer_found = False
-        for idx in range(3):  # try the first few edit/combo controls
-            for ct in ("ComboBox", "Edit"):
-                try:
-                    f = rcpts_win.child_window(control_type=ct, found_index=idx)
-                    f.click_input()
-                    time.sleep(DELAY)
-                    f.type_keys(customer_name, with_spaces=True)
-                    time.sleep(DELAY * 2)   # let Sage autocomplete / dropdown appear
-                    f.type_keys("{TAB}")    # confirm selection and advance focus
-                    customer_found = True
-                    break
-                except Exception:
-                    pass
-            if customer_found:
-                break
-
-        if not customer_found:
-            log.error("Could not find customer field in Receipts Journal for '%s'", customer_name)
+        # The customer "From" ComboBox (auto_id="25") contains an inner Edit with
+        # the stable auto_id="1001". Target it directly — the outer loop used to
+        # hit the "Paid By:" ComboBox (also found_index=0) instead.
+        try:
+            customer_edit = rcpts_win.child_window(auto_id="1001", control_type="Edit")
+            customer_edit.set_edit_text("")              # clear silently (no autocomplete)
+            customer_edit.click_input()
+            time.sleep(DELAY)
+            customer_edit.type_keys(customer_name, with_spaces=True)  # fires Sage autocomplete
+            time.sleep(DELAY * 2)                        # wait for dropdown
+            customer_edit.type_keys("{TAB}")             # confirm selection
+        except Exception as _ce:
+            log.error("Customer field (auto_id=1001) not found for '%s': %s", customer_name, _ce)
             _dump(rcpts_win, "Receipts Journal — customer field not found")
             return False
 
@@ -272,57 +264,46 @@ def post_receipt(customer_name: str, amount: float, date_str: str) -> bool:
         time.sleep(DELAY)
 
         # ── 5. Enter amount received ──────────────────────────────────────
+        # The "Amount" field (auto_id="100") is at the top-right of the form.
+        # UIA reports it as control_type="Text" (Static) because Sage owner-draws it,
+        # but it IS clickable and editable — click it, select-all, type amount.
         amount_str = f"{amount:.2f}"
         amount_set = False
 
-        # Approach A: standalone "Amount Received" Edit field
-        if _set_field(
-            rcpts_win,
-            [r"(?i).*amount received.*", r"(?i).*total.*received.*",
-             r"(?i).*amount.*paid.*", r"(?i).*payment amount.*"],
-            amount_str,
-        ):
+        try:
+            amount_ctrl = rcpts_win.child_window(auto_id="100", control_type="Text")
+            amount_ctrl.click_input()
+            time.sleep(DELAY)
+            rcpts_win.type_keys("^a")        # select any existing value
+            rcpts_win.type_keys(amount_str)
             amount_set = True
+            log.debug("Set amount $%s via Amount field (auto_id=100)", amount_str)
+        except Exception as _ae:
+            log.debug("click_input on Amount field (auto_id=100) failed: %s — trying coords", _ae)
 
-        # Approach B: DataGrid / Table cell (invoice grid → Amount Received column)
+        # Fallback: coordinate-based click using the control's screen rectangle
         if not amount_set:
-            for grid_type in ("Table", "DataGrid", "Custom", "List"):
-                try:
-                    grid = rcpts_win.child_window(control_type=grid_type, found_index=0)
-                    # First data row
-                    row = grid.child_window(control_type="DataItem", found_index=0)
-                    # Try each Edit cell in the row — "Amount Received" is usually
-                    # the 4th or 5th column. Try from the right side.
-                    cells = row.children(control_type="Edit")
-                    if not cells:
-                        cells = row.children(control_type="Custom")
-                    for cell in reversed(cells):
-                        name = (cell.element_info.name or "").lower()
-                        if "amount" in name or "received" in name or "payment" in name or not name:
-                            try:
-                                cell.click_input()
-                                time.sleep(0.2)
-                                cell.set_edit_text(amount_str)
-                                amount_set = True
-                                log.debug("Set amount via DataGrid cell '%s'", name)
-                                break
-                            except Exception:
-                                pass
-                    if amount_set:
-                        break
-                except Exception:
-                    pass
+            try:
+                from pywinauto import mouse
+                amount_ctrl = rcpts_win.child_window(auto_id="100", control_type="Text")
+                r = amount_ctrl.rectangle()
+                cx = (r.left + r.right) // 2
+                cy = (r.top + r.bottom) // 2
+                rcpts_win.set_focus()
+                time.sleep(DELAY)
+                mouse.click(button="left", coords=(cx, cy))
+                time.sleep(DELAY)
+                rcpts_win.type_keys("^a")
+                rcpts_win.type_keys(amount_str)
+                amount_set = True
+                log.debug("Set amount $%s via coord click at (%d,%d)", amount_str, cx, cy)
+            except Exception as _ae2:
+                log.warning("All amount-entry strategies failed for '%s' $%.2f: %s",
+                            customer_name, amount, _ae2)
 
-        # Approach C would be Tab navigation, but without knowing the exact Tab count
-        # (determined from the dump above) it would enter the amount in the wrong field.
-        # Return False here rather than post garbage data and falsely mark sageSynced.
         if not amount_set:
-            log.warning(
-                "Amount Received field not found for '%s' $%.2f — "
-                "see 'Receipts Journal controls' dump above to identify the correct "
-                "control name/path, then update Approach A or B accordingly.",
-                customer_name, amount,
-            )
+            log.warning("Could not enter amount for '%s' $%.2f — payment not posted.",
+                        customer_name, amount)
             return False
 
         time.sleep(DELAY)
