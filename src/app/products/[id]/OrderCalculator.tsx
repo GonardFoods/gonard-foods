@@ -197,9 +197,11 @@ export default function OrderCalculator({ product }: { product: Product }) {
         </div>
       </div>
 
-      <p className="text-xs leading-relaxed" style={{ color: "#03033f66" }}>
-        * Estimated weight and price are not exact quotes. Actual case weight varies. Contact us to confirm final pricing before placing your order.
-      </p>
+      {!isPerBox && (
+        <p className="text-xs leading-relaxed" style={{ color: "#03033f66" }}>
+          * Estimated weight and price are not exact quotes. Actual case weight varies.
+        </p>
+      )}
 
       <button
         onClick={handleAdd}
