@@ -117,8 +117,11 @@ export default function CartPage() {
             {items.map((item) => {
               const p = prices[item.productId];
               const isWeightDirect = p?.pricingType === "per_weight_direct";
+              const isPerBox = p?.pricingType === "per_box";
               const weightUnit = getWeightUnit(item.unit);
-              const estWeight = !isWeightDirect && p?.caseWeight != null ? item.quantity * p.caseWeight : null;
+              // per_box items have no case weight — priced as a flat rate per box,
+              // so there's no estimated weight to show, only the price itself.
+              const estWeight = !isWeightDirect && !isPerBox && p?.caseWeight != null ? item.quantity * p.caseWeight : null;
               const estPrice = itemEstimate(item.productId, item.quantity);
 
               return (
@@ -137,6 +140,12 @@ export default function CartPage() {
                     <p className="text-xs mt-1" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>
                       {isWeightDirect ? (
                         <>{fmt(item.quantity, 2)} {item.unit}{estPrice != null && <> · ~${fmt(estPrice)}</>}</>
+                      ) : isPerBox ? (
+                        estPrice != null ? (
+                          <>{item.quantity} case{item.quantity !== 1 ? "s" : ""} · ~${fmt(estPrice)}</>
+                        ) : (
+                          <span style={{ color: "#03033f44" }}>Price not set</span>
+                        )
                       ) : estWeight != null ? (
                         <>~{fmt(estWeight, 1)} {weightUnit}{estPrice != null && <> · ~${fmt(estPrice)}</>}</>
                       ) : (

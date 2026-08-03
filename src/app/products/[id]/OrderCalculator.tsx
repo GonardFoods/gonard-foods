@@ -21,6 +21,7 @@ export default function OrderCalculator({ product }: { product: Product }) {
   const weightUnit = getWeightUnit(product.unit);
   const inCart = items.some((i) => i.productId === product.id);
   const isWeightDirect = priceData?.pricingType === "per_weight_direct";
+  const isPerBox = priceData?.pricingType === "per_box";
 
   useEffect(() => {
     fetch(`/api/prices/${product.id}`)
@@ -30,12 +31,19 @@ export default function OrderCalculator({ product }: { product: Product }) {
   }, [product.id]);
 
   // Box-based estimates (per_weight and per_box)
+  // per_box products have no case weight at all — they're priced as a flat
+  // rate per box, so the weight field always stays blank ("—") and price is
+  // qty × price/box directly, independent of any case weight.
   const estimatedWeight =
-    !isWeightDirect && qty > 0 && priceData?.caseWeight != null
+    !isWeightDirect && !isPerBox && qty > 0 && priceData?.caseWeight != null
       ? qty * priceData.caseWeight
       : null;
   const estimatedPrice =
-    !isWeightDirect && estimatedWeight != null && priceData?.pricePerUnit != null
+    isWeightDirect || priceData?.pricePerUnit == null || qty === 0
+      ? null
+      : isPerBox
+      ? qty * priceData.pricePerUnit
+      : estimatedWeight != null
       ? estimatedWeight * priceData.pricePerUnit
       : null;
 
