@@ -1,16 +1,14 @@
 """
 sage-agent/agent.py
 ===================
-Runs on the company PC. Does two things every poll cycle:
+Runs on the company PC. Every poll cycle:
 
-  1. EMAIL — Scans the inbox for Interac e-Transfer notifications, parses the
-     sender name and amount, fuzzy-matches the sender to a customer, posts the
-     payment to the web app (auto-applied or flagged as unmatched), and reduces
-     the customer's outstanding balance.
-
-  2. SAGE  — Fetches invoiced orders not yet synced to Sage 50, creates a sales
-     invoice in Sage for each one, then marks the order as synced. Also records
-     matched e-transfer payments as customer receipts in Sage.
+  1. Ensures web-app customers exist in Sage (respecting admin-controlled
+     onboarding triage in /admin/customers).
+  2. Fetches invoiced orders not yet synced to Sage 50, creates a sales
+     invoice in Sage for each one, then marks the order as synced.
+  3. Sends invoice emails for fulfilled + Sage-synced orders that haven't
+     been emailed yet.
 
 NOTE: Sage 50 does NOT need to be open. The SDK connects to the database file
       directly. However, no other user should be editing the same company file
@@ -22,20 +20,18 @@ Setup:
   3. python agent.py
 
 Logs go to agent.log in this folder and to the terminal.
+
+NOTE (2026-08-03): Interac e-transfer email scanning/matching and the
+pywinauto-based Sage Receipts Journal automation (customer payment posting)
+have been removed. That feature is being redesigned from scratch — see
+project memory for the history before reintroducing it.
 """
 
-import imaplib
-import email
-import email.header
-import json
-import os
-import re
 import sys
 import time
 import logging
 import traceback
-from datetime import datetime, timezone, timedelta
-from difflib import SequenceMatcher
+from datetime import datetime
 
 import requests
 
@@ -151,255 +147,6 @@ def api(method: str, path: str, **kwargs):
     return resp.json()
 
 
-# ── Fuzzy matching ────────────────────────────────────────────────────────────
-def similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
-
-
-def best_customer_match(sender_name: str, customers: list):
-    best, best_score = None, 0.0
-    for c in customers:
-        score = max(
-            similarity(sender_name, c.get("name", "")),
-            similarity(sender_name, c.get("company", "")),
-        )
-        if score > best_score:
-            best, best_score = c, score
-    return best, best_score
-
-
-# ── IMAP / Interac e-transfer parsing ────────────────────────────────────────
-# Each entry: (compiled_regex, role_of_group1, role_of_group2)
-# role is "name" or "amount" — tells _apply_patterns which group is which.
-# Uses search() not match() so prefixes like "Interac e-Transfer: " don't block matching.
-_SUBJECT_PATTERNS = [
-    # "{Name} sent you an Interac e-Transfer® for $100.00"
-    (re.compile(
-        r"(.+?)\s+sent you an?\s+Interac\S*\s*e-Transfer\S*\s+for\s+\$([0-9,]+(?:\.[0-9]{1,2})?)",
-        re.IGNORECASE,
-    ), "name", "amount"),
-
-    # "You've received $100.00 from {Name}" — auto-deposit notification
-    (re.compile(
-        r"you(?:'ve| have)?\s+received\s+\$([0-9,]+(?:\.[0-9]{1,2})?)\s+from\s+(.+?)(?:\s*[\(\.\n,]|$)",
-        re.IGNORECASE,
-    ), "amount", "name"),
-
-    # "$100.00 deposited from {Name}"
-    (re.compile(
-        r"\$([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:deposited\s+)?from\s+(.+?)(?:\s*[\(\.\n,]|$)",
-        re.IGNORECASE,
-    ), "amount", "name"),
-
-    # French: "{Name} vous a envoyé un virement Interac de 100,00 $"
-    (re.compile(
-        r"(.+?)\s+vous a envoy[eé] un virement Interac.*?de ([0-9\s,]+(?:[.,][0-9]{1,2})?)\s*\$",
-        re.IGNORECASE,
-    ), "name", "amount"),
-]
-
-# Same idea but applied to plain-text email body as a fallback.
-_BODY_PATTERNS = [
-    (re.compile(
-        r"(.+?)\s+sent you an?\s+(?:Interac\S*\s*)?e-Transfer\S*\s+(?:of\s+)?\$([0-9,]+(?:\.[0-9]{1,2})?)",
-        re.IGNORECASE,
-    ), "name", "amount"),
-    (re.compile(
-        r"you(?:'ve| have)?\s+received\s+\$([0-9,]+(?:\.[0-9]{1,2})?)\s+from\s+(.+?)[\.\n]",
-        re.IGNORECASE,
-    ), "amount", "name"),
-    (re.compile(
-        r"\$([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:has been )?(?:deposited|sent)\b.*?(?:by|from)\s+(.+?)[\.\n]",
-        re.IGNORECASE,
-    ), "amount", "name"),
-]
-
-# Absolute path so the file is always found next to agent.py regardless of the
-# working directory the agent is launched from.
-PROCESSED_UIDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "processed_uids.json")
-
-
-def load_processed_uids() -> set:
-    if os.path.exists(PROCESSED_UIDS_FILE):
-        try:
-            with open(PROCESSED_UIDS_FILE, "r", encoding="utf-8") as f:
-                return set(json.load(f))
-        except Exception:
-            log.warning("Could not load %s — starting fresh", PROCESSED_UIDS_FILE)
-    return set()
-
-
-def save_processed_uids(uids: set):
-    try:
-        with open(PROCESSED_UIDS_FILE, "w", encoding="utf-8") as f:
-            json.dump(list(uids), f)
-    except Exception:
-        log.warning("Could not save %s:\n%s", PROCESSED_UIDS_FILE, traceback.format_exc())
-
-
-def _apply_patterns(text: str, patterns: list):
-    """Try each (regex, g1_role, g2_role) pattern against text; return (name, amount) or (None, None)."""
-    for pattern, g1_role, g2_role in patterns:
-        m = pattern.search(text)
-        if m:
-            try:
-                g1, g2 = m.group(1).strip(), m.group(2).strip()
-                name, amt_str = (g1, g2) if g1_role == "name" else (g2, g1)
-                return name, float(amt_str.replace(",", "").replace(" ", ""))
-            except (ValueError, IndexError, AttributeError):
-                pass
-    return None, None
-
-
-def parse_etransfer_subject(subject: str):
-    return _apply_patterns(subject, _SUBJECT_PATTERNS)
-
-
-def get_email_text(msg) -> str:
-    """Extract usable plain text from an email (plain-text part, then HTML with tags stripped)."""
-    if msg.is_multipart():
-        for part in msg.walk():
-            if part.get_content_type() == "text/plain":
-                try:
-                    return part.get_payload(decode=True).decode(
-                        part.get_content_charset() or "utf-8", errors="replace"
-                    )
-                except Exception:
-                    pass
-        for part in msg.walk():
-            if part.get_content_type() == "text/html":
-                try:
-                    html = part.get_payload(decode=True).decode(
-                        part.get_content_charset() or "utf-8", errors="replace"
-                    )
-                    return re.sub(r"<[^>]+>", " ", html)
-                except Exception:
-                    pass
-    else:
-        try:
-            return msg.get_payload(decode=True).decode(
-                msg.get_content_charset() or "utf-8", errors="replace"
-            )
-        except Exception:
-            pass
-    return ""
-
-
-def decode_subject(msg) -> str:
-    raw = msg.get("Subject", "")
-    parts = email.header.decode_header(raw)
-    decoded = ""
-    for part, enc in parts:
-        if isinstance(part, bytes):
-            decoded += part.decode(enc or "utf-8", errors="replace")
-        else:
-            decoded += part
-    return decoded
-
-
-def check_email(processed_uids: set, customers: list, sender_map: dict) -> set:
-    """
-    Scans the inbox for Interac e-Transfer notifications using IMAP UIDs.
-
-    Uses UIDs (not sequence numbers) so deduplication survives restarts.
-    sender_map is a dict of { normalized_sender_name: { customerId, customerName } }
-    populated from previous manual assignments — these take priority over fuzzy matching.
-    """
-    newly_processed = set()
-    try:
-        with imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT) as imap:
-            imap.login(config.IMAP_USER, config.IMAP_PASSWORD)
-            imap.select("INBOX")
-
-            # UID SEARCH returns stable IDs that don't change when other messages are deleted.
-            cutoff_dt = datetime.strptime(config.EMAIL_CUTOFF_DATE, "%d-%b-%Y").replace(tzinfo=timezone.utc)
-            rolling_dt = datetime.now(timezone.utc) - timedelta(days=45)
-            since_dt = max(cutoff_dt, rolling_dt)
-            since_date = since_dt.strftime("%d-%b-%Y")
-
-            _, data = imap.uid("SEARCH", None, f'SINCE {since_date} SUBJECT "Interac"')
-            uids = data[0].split() if data[0] else []
-            log.info("Inbox scan: %d Interac email(s) found since %s", len(uids), since_date)
-
-            for uid_bytes in uids:
-                uid = uid_bytes.decode()
-                if uid in processed_uids:
-                    continue
-
-                _, raw = imap.uid("FETCH", uid_bytes, "(RFC822)")
-                if not raw or raw[0] is None:
-                    newly_processed.add(uid)
-                    continue
-
-                msg = email.message_from_bytes(raw[0][1])
-                subject = decode_subject(msg)
-                received_at = datetime.now(timezone.utc).isoformat()
-
-                sender_name, amount = parse_etransfer_subject(subject)
-                if sender_name is None:
-                    # Subject didn't match — try the email body as a fallback
-                    body_text = get_email_text(msg)
-                    sender_name, amount = _apply_patterns(body_text, _BODY_PATTERNS)
-
-                if sender_name is None:
-                    log.warning(
-                        "UID %s: could not parse e-transfer — subject was: %r",
-                        uid, subject[:200],
-                    )
-                    newly_processed.add(uid)
-                    continue
-
-                log.info("E-transfer: '%s'  $%.2f  (UID %s)", sender_name, amount, uid)
-
-                # 1. Check admin-set sender map first (takes absolute priority)
-                mapped = sender_map.get(sender_name.lower().strip())
-                if mapped:
-                    source            = "email_auto"
-                    customer_id       = mapped.get("customerId")
-                    customer_name_val = mapped.get("customerName")
-                    log.info("Sender map hit: '%s' → '%s'", sender_name, customer_name_val)
-                else:
-                    # 2. Fall back to fuzzy matching against web-app customers
-                    customer, score = best_customer_match(sender_name, customers)
-                    if customer and score >= config.FUZZY_MATCH_THRESHOLD:
-                        log.info("Fuzzy match: '%s' → %s (score=%.2f)", sender_name, customer["name"], score)
-                        source            = "email_auto"
-                        customer_id       = customer["id"]
-                        customer_name_val = customer["name"]
-                    else:
-                        log.info("No match for '%s' (best score=%.2f) — queuing for manual assignment",
-                                 sender_name, score if customer else 0.0)
-                        source            = "email_unmatched"
-                        customer_id       = None
-                        customer_name_val = sender_name
-
-                try:
-                    resp = api("POST", "/api/agent/payments", json={
-                        "customerId":   customer_id,
-                        "customerName": customer_name_val,
-                        "amount":       amount,
-                        "receivedAt":   received_at,
-                        "source":       source,
-                        "note":         f"Interac e-Transfer — sender: '{sender_name}'",
-                        "emailUid":     uid,
-                    })
-                    if resp.get("duplicate"):
-                        log.info("UID %s: already in system (manually assigned or prior run) — skipping", uid)
-                    else:
-                        log.info("Payment posted (source=%s, customer=%s)", source, customer_name_val)
-                except Exception:
-                    log.error("Failed to post payment to web app:\n%s", traceback.format_exc())
-                    # Don't add to processed_uids — retry next cycle
-                    continue
-
-                newly_processed.add(uid)
-
-    except Exception:
-        log.error("IMAP error:\n%s", traceback.format_exc())
-
-    return newly_processed
-
-
 # ── Sage: ensure customer exists ─────────────────────────────────────────────
 def ensure_sage_customer(cust: dict) -> bool:
     """
@@ -449,26 +196,51 @@ def ensure_sage_customer(cust: dict) -> bool:
 
 
 # ── Sage: create sales invoice ────────────────────────────────────────────────
-def create_sage_invoice(order: dict) -> bool:
+def create_sage_invoice(order: dict, customer_by_id: dict) -> bool:
     """
     Creates a sales invoice in Sage 50 using the SimplySDK SalesJournal.
-    Automatically creates the customer in Sage first if they don't exist.
     Items are matched by itemNo (must match Sage inventory part codes).
+
+    Respects the same admin-controlled Sage-onboarding triage as sync_customers():
+      "pending" — admin hasn't reviewed this signup yet; hold the invoice (retried
+                  next cycle) rather than silently creating them in Sage.
+      "linked"  — admin already matched this customer to an existing Sage ledger
+                  entry under sageName; use that name directly and do NOT run
+                  ensure_sage_customer (it could create a spurious duplicate under
+                  the web-app's name instead of matching the real one).
+      "new"     — admin confirmed brand-new; ensure_sage_customer creates them.
+      no linked Customer record (guest order, or customerId not found) — fall back
+                  to the order's own embedded customer info, as before.
     """
     try:
         cust = order["customer"]
-        # Ensure customer exists in Sage before opening the journal
-        if not ensure_sage_customer(cust):
-            log.error("Aborting invoice for order %s — could not ensure Sage customer", order.get("id"))
+        customer = customer_by_id.get(order.get("customerId"))
+
+        if customer and customer.get("sageStatus") == "pending":
+            log.info(
+                "Order %s: customer '%s' is still 'pending' Sage triage in "
+                "/admin/customers — holding invoice until reviewed.",
+                order.get("id"), customer.get("company") or customer.get("name", "?"),
+            )
             return False
 
-        sage_customer_name = (cust.get("company") or cust.get("name", "")).strip()
+        if customer and customer.get("sageName"):
+            # "linked" (or any record an admin has explicitly mapped) — trust the
+            # existing Sage ledger name, don't try to create/ensure anything.
+            sage_customer_name = customer["sageName"].strip()
+        else:
+            # "new", or no linked Customer record at all (guest order) — ensure
+            # the customer exists in Sage before opening the journal.
+            if not ensure_sage_customer(cust):
+                log.error("Aborting invoice for order %s — could not ensure Sage customer", order.get("id"))
+                return False
+            sage_customer_name = (cust.get("company") or cust.get("name", "")).strip()
 
         sal = SDKInstanceManager.Instance.OpenSalesJournal()
         try:
             sal.SelectTransType(0)                    # 0 = invoice (not order/quote)
             sal.InvoiceNumber = order["id"][:20]      # web order ID as invoice number
-            sal.SelectAPARLedger(sage_customer_name)  # business name, now guaranteed to exist
+            sal.SelectAPARLedger(sage_customer_name)  # either the linked sageName, or just-ensured
             sal.SelectPaidByType("Pay Later")         # outstanding balance
 
             date_str = (order.get("invoicedAt") or datetime.utcnow().isoformat())[:10]
@@ -508,49 +280,6 @@ def create_sage_invoice(order: dict) -> bool:
         return False
 
 
-# ── Sage: record customer receipt ─────────────────────────────────────────────
-def record_sage_receipt(payment: dict) -> bool:
-    """
-    Records a customer receipt in Sage 50.
-
-    The Sage 50 2026 SDK removed OpenReceiptsJournal, so we automate the
-    Sage 50 UI directly via pywinauto. Sage 50 must be open on this PC.
-    """
-    customer_name = payment.get("customerName", "")
-    amount        = float(payment.get("amount", 0))
-    date_str      = (payment.get("receivedAt") or datetime.utcnow().isoformat())[:10]
-
-    if not customer_name or amount <= 0:
-        log.warning("Skipping receipt — missing customer or zero amount (payment %s)", payment.get("id"))
-        return False
-
-    # Try SDK path first (only available in older Sage 50 versions with DB open)
-    if SAGE_AVAILABLE and hasattr(SDKInstanceManager.Instance, "OpenReceiptsJournal"):
-        try:
-            rec = SDKInstanceManager.Instance.OpenReceiptsJournal()
-            try:
-                rec.SelectAPARLedger(customer_name)
-                rec.SelectPaidByType("Cheque")
-                rec.SetDepositAmount(amount)
-                rec.SetJournalDate(date_str)
-                rec.SetComment(payment.get("note") or "Interac e-Transfer")
-                ok = rec.Post()
-                if ok:
-                    log.info("Sage receipt posted (SDK): $%.2f for '%s'", amount, customer_name)
-                return ok
-            finally:
-                SDKInstanceManager.Instance.CloseReceiptsJournal()
-        except Exception:
-            log.error("SDK receipt posting failed:\n%s", traceback.format_exc())
-            return False
-
-    # SDK path unavailable (Sage 50 2026+) — use UI automation
-    from sage_receipts_ui import post_receipt
-    return post_receipt(customer_name, amount, date_str)
-
-
-
-
 # ── Sync loops ────────────────────────────────────────────────────────────────
 def sync_customers(customers: list):
     """
@@ -568,15 +297,17 @@ def sync_customers(customers: list):
         ensure_sage_customer(customer)
 
 
-def sync_invoiced_orders():
+def sync_invoiced_orders(customers: list):
     try:
         orders = api("GET", "/api/agent/orders?unsynced=true")
     except Exception:
         log.error("Could not fetch orders:\n%s", traceback.format_exc())
         return
 
+    customer_by_id = {c["id"]: c for c in customers}
+
     for order in orders:
-        ok = create_sage_invoice(order)
+        ok = create_sage_invoice(order, customer_by_id)
         if ok:
             try:
                 api("PATCH", f"/api/agent/orders/{order['id']}", json={"sageSynced": True})
@@ -605,58 +336,13 @@ def send_invoice_emails():
             log.error("Could not send invoice email for order %s:\n%s", order["id"], traceback.format_exc())
 
 
-def sync_payments(customers: list):
-    try:
-        payments = api("GET", "/api/agent/payments?unsynced=true")
-    except Exception:
-        log.error("Could not fetch payments:\n%s", traceback.format_exc())
-        return
-
-    customer_by_id = {c["id"]: c for c in customers}
-
-    for payment in payments:
-        # Skip genuinely unmatched payments (not yet assigned by admin)
-        if payment.get("source") == "email_unmatched":
-            continue
-
-        cust_id = payment.get("customerId")
-        customer = customer_by_id.get(cust_id) if cust_id else None
-
-        if customer:
-            # Use the explicit sageName if set, otherwise derive from company/name
-            sage_name = (
-                customer.get("sageName") or
-                (customer.get("company") or customer.get("name", "")).strip()
-            )
-        else:
-            # Sage-only customer (manual_sage) or customer no longer in web app:
-            # rely on the customerName stored in the payment record
-            sage_name = payment.get("customerName", "")
-            if cust_id:
-                log.warning("Payment %s: customer %s not found in current list — using stored name '%s'",
-                            payment["id"], cust_id, sage_name)
-
-        if not sage_name:
-            log.warning("Payment %s has no resolvable customer name — skipping Sage receipt", payment["id"])
-            continue
-
-        ok = record_sage_receipt({**payment, "customerName": sage_name})
-        if ok:
-            try:
-                api("PATCH", f"/api/agent/payments/{payment['id']}", json={"sageSynced": True})
-            except Exception:
-                log.error("Could not mark payment %s synced:\n%s", payment["id"], traceback.format_exc())
-
-
 # ── Main loop ─────────────────────────────────────────────────────────────────
 def main():
     log.info("Gonard Foods Sage agent starting. Poll interval: %ds", config.POLL_INTERVAL_SECONDS)
     load_sage_sdk()
-    processed_uids = load_processed_uids()
-    log.info("Loaded %d previously processed email UIDs from disk", len(processed_uids))
 
     while True:
-        # Fetch current customer list for fuzzy name matching
+        # Fetch current customer list (used for Sage-onboarding triage lookups)
         try:
             customers = api("GET", "/api/agent/customers")
         except Exception:
@@ -664,25 +350,12 @@ def main():
             time.sleep(config.POLL_INTERVAL_SECONDS)
             continue
 
-        # Fetch admin-set sender mappings (overrides fuzzy matching for known senders)
-        try:
-            sender_map = api("GET", "/api/agent/sender-map")
-        except Exception:
-            log.warning("Could not fetch sender map — fuzzy matching only:\n%s", traceback.format_exc())
-            sender_map = {}
-
-        # 1. Email scan
-        new_uids = check_email(processed_uids, customers, sender_map)
-        if new_uids:
-            processed_uids.update(new_uids)
-            save_processed_uids(processed_uids)
-
-        # 2. Sage SDK sync — customers/invoices need the DB open
+        # Sage SDK sync — customers/invoices need the DB open
         if SAGE_AVAILABLE:
             if open_sage_db():
                 try:
                     sync_customers(customers)
-                    sync_invoiced_orders()
+                    sync_invoiced_orders(customers)
                     send_invoice_emails()
                 finally:
                     close_sage_db()
@@ -691,9 +364,6 @@ def main():
                     "Sage DB unavailable (Sage 50 is likely open under the same username) "
                     "— invoice sync skipped this cycle."
                 )
-
-        # 3. Payment receipts — uses pywinauto UI automation; needs Sage running, not SDK DB
-        sync_payments(customers)
 
         log.info("Cycle complete. Sleeping %ds.", config.POLL_INTERVAL_SECONDS)
         time.sleep(config.POLL_INTERVAL_SECONDS)
