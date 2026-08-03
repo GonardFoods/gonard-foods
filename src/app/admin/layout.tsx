@@ -69,19 +69,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </nav>
         </div>
 
-        {/* Desktop: single row, unchanged */}
-        <div className="hidden sm:flex max-w-7xl mx-auto px-6 h-14 items-center justify-between">
-          <div className="flex items-center gap-6">
-            <span
-              className="text-white text-xs font-bold tracking-[0.2em] uppercase flex-shrink-0"
-              style={{ fontFamily: "var(--font-brand), sans-serif" }}
-            >
-              Gonard Foods Admin
-            </span>
-            <nav className="flex gap-4">
-              {NAV_LINKS.map((l) => <NavLink key={l.href} {...l} />)}
-            </nav>
-          </div>
+        {/* Desktop: single row — nav scrolls horizontally in the space between the
+            logo and Sign Out, instead of overflowing and overlapping Sign Out. */}
+        <div className="hidden sm:flex max-w-7xl mx-auto px-6 h-14 items-center gap-6">
+          <span
+            className="text-white text-xs font-bold tracking-[0.2em] uppercase flex-shrink-0"
+            style={{ fontFamily: "var(--font-brand), sans-serif" }}
+          >
+            Gonard Foods Admin
+          </span>
+          <nav className="no-scrollbar flex gap-4 overflow-x-auto whitespace-nowrap flex-1 min-w-0">
+            {NAV_LINKS.map((l) => <NavLink key={l.href} {...l} />)}
+          </nav>
 
           <SignOutButton />
         </div>
