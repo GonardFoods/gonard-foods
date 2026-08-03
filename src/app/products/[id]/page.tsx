@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getAllProducts } from "@/lib/products-store";
+import { getPublicProducts } from "@/lib/products-store";
 import { CATEGORY_LABELS, getProductPhotos, type Category } from "@/data/products";
 import OrderCalculator from "./OrderCalculator";
 import PhotoSlideshow from "./PhotoSlideshow";
@@ -9,7 +9,7 @@ import PhotoSlideshow from "./PhotoSlideshow";
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
-  const products = await getAllProducts();
+  const products = await getPublicProducts();
   return products.map((p) => ({ id: p.id }));
 }
 
@@ -19,7 +19,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const products = await getAllProducts();
+  const products = await getPublicProducts();
   const product = products.find((p) => p.id === id);
   if (!product) return {};
   return {
@@ -43,7 +43,7 @@ export default async function ProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const products = await getAllProducts();
+  const products = await getPublicProducts();
   const product = products.find((p) => p.id === id);
   if (!product) notFound();
 

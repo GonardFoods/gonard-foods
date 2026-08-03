@@ -30,6 +30,13 @@ export const getAllProducts = unstable_cache(
   { tags: ["products"] }
 );
 
+// Products visible to customers — excludes anything marked "not carrying".
+// Always use this (never getAllProducts) for public-facing pages.
+export async function getPublicProducts(): Promise<Product[]> {
+  const all = await getAllProducts();
+  return all.filter((p) => !p.notCarrying);
+}
+
 export async function saveAllProducts(updated: Product[]): Promise<void> {
   const kv = await getKV();
   if (!kv) throw new Error("KV unavailable");

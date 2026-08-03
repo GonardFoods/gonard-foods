@@ -46,6 +46,7 @@ const EMPTY_DRAFT: Partial<Product> & { photos: PhotoEntry[] } = {
   marketPrice: null,
   salePrice: null,
   saleEndDate: null,
+  notCarrying: false,
   photos: [],
   photoUrl: null,
 };
@@ -347,6 +348,8 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<"all" | Category>("all");
+  const [carryFilter, setCarryFilter] = useState<"all" | "carrying" | "not-carrying">("all");
+  const [togglingCarry, setTogglingCarry] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<"add" | "edit">("add");
   const [draft, setDraft] = useState<Partial<Product> & { photos: PhotoEntry[] }>({ ...EMPTY_DRAFT });
@@ -539,9 +542,25 @@ export default function AdminProducts() {
     }
   }
 
+  async function toggleCarrying(product: Product) {
+    setTogglingCarry(product.id);
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notCarrying: !product.notCarrying }),
+      });
+      if (res.ok) await load();
+    } finally {
+      setTogglingCarry(null);
+    }
+  }
+
   // ── Filter ─────────────────────────────────────────────────────────────────
   const filtered = products.filter((p) => {
     if (catFilter !== "all" && p.category !== catFilter) return false;
+    if (carryFilter === "carrying" && p.notCarrying) return false;
+    if (carryFilter === "not-carrying" && !p.notCarrying) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       if (!p.name.toLowerCase().includes(q) && !p.itemNo.toLowerCase().includes(q)) return false;
@@ -601,6 +620,32 @@ export default function AdminProducts() {
             );
           })}
         </div>
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["all", "All"],
+              ["carrying", "Carrying"],
+              ["not-carrying", "Not Carrying"],
+            ] as [typeof carryFilter, string][]
+          ).map(([val, label]) => {
+            const active = carryFilter === val;
+            return (
+              <button
+                key={val}
+                onClick={() => setCarryFilter(val)}
+                className="px-3 py-1.5 text-xs font-bold tracking-widest uppercase transition-colors"
+                style={{
+                  fontFamily: "var(--font-brand), sans-serif",
+                  backgroundColor: active ? "#03033f" : "transparent",
+                  color: active ? "#fff" : "#03033f99",
+                  border: active ? "1px solid #03033f" : "1px solid #03033f33",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <span className="text-xs whitespace-nowrap" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
           {filtered.length} of {products.length}
         </span>
@@ -635,7 +680,11 @@ export default function AdminProducts() {
               {filtered.map((p) => {
                 const productPhotos = getProductPhotos(p);
                 return (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #03033f08" }} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={p.id}
+                    style={{ borderBottom: "1px solid #03033f08", opacity: p.notCarrying ? 0.55 : 1 }}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
                     <td className="px-4 py-3">
                       <div
                         className="w-12 h-10 flex items-center justify-center overflow-hidden flex-shrink-0 relative"
@@ -655,8 +704,18 @@ export default function AdminProducts() {
                       </div>
                     </td>
                     <td className="px-4 py-3 max-w-xs">
-                      <div className="font-bold text-xs leading-snug" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
-                        {p.name}
+                      <div className="flex items-center gap-2">
+                        <div className="font-bold text-xs leading-snug" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                          {p.name}
+                        </div>
+                        {p.notCarrying && (
+                          <span
+                            className="px-1.5 py-0.5 text-xs font-bold tracking-widest uppercase whitespace-nowrap"
+                            style={{ backgroundColor: "#03033f14", color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}
+                          >
+                            Not Carrying
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs mt-0.5" style={{ color: "#03033f55", fontFamily: "var(--font-brand), sans-serif" }}>
                         #{p.itemNo}
@@ -692,6 +751,15 @@ export default function AdminProducts() {
                               style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
                             >
                               Edit
+                            </button>
+                            <button
+                              onClick={() => toggleCarrying(p)}
+                              disabled={togglingCarry === p.id}
+                              className="text-xs font-bold tracking-widest uppercase px-3 py-1.5 transition-opacity hover:opacity-70 disabled:opacity-40"
+                              style={{ border: "1px solid #03033f33", color: "#03033f88", fontFamily: "var(--font-brand), sans-serif", whiteSpace: "nowrap" }}
+                              title={p.notCarrying ? "Show this product on the website again" : "Hide this product from the website"}
+                            >
+                              {togglingCarry === p.id ? "…" : p.notCarrying ? "Restore" : "Not Carrying"}
                             </button>
                             <button
                               onClick={() => setConfirmDelete(p.id)}
@@ -778,6 +846,13 @@ export default function AdminProducts() {
                 <input type="checkbox" id="halal" checked={draft.halal ?? true} onChange={(e) => setProp("halal", e.target.checked)} className="w-4 h-4" style={{ accentColor: "#03033f" }} />
                 <label htmlFor="halal" className="text-xs font-bold tracking-widest uppercase cursor-pointer" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
                   Halal Certified
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="notCarrying" checked={draft.notCarrying ?? false} onChange={(e) => setProp("notCarrying", e.target.checked)} className="w-4 h-4" style={{ accentColor: "#03033f" }} />
+                <label htmlFor="notCarrying" className="text-xs font-bold tracking-widest uppercase cursor-pointer" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
+                  Not Carrying — hide from website
                 </label>
               </div>
 

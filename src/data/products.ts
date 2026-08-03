@@ -43,6 +43,7 @@ export interface Product {
   salePrice: number | null;
   saleEndDate: string | null;
   availableOnRequest?: boolean;
+  notCarrying?: boolean; // hidden from the public site entirely; still visible/editable in admin
   photos?: PhotoEntry[];
   photoUrl?: string | null; // legacy — superseded by photos[]
 }
