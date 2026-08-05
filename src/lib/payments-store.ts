@@ -19,12 +19,18 @@ export interface Payment {
   customerName: string;
   amount: number;
   receivedAt: string; // ISO
-  source: "email_auto" | "email_unmatched" | "manual" | "manual_sage";
+  source: "email_auto" | "email_unmatched" | "manual" | "manual_sage" | "stripe";
   note?: string;
   sageSynced: boolean;
   balanceBefore?: number;
   balanceAfter?: number;
   emailUid?: string; // IMAP UID — used to deduplicate if agent replays the same email
+  stripeSessionId?: string; // Stripe Checkout Session ID — used to deduplicate webhook retries
+}
+
+export async function getPaymentByStripeSessionId(sessionId: string): Promise<Payment | null> {
+  const all = await getPayments();
+  return all.find((p) => p.stripeSessionId === sessionId) ?? null;
 }
 
 export async function getPayments(): Promise<Payment[]> {

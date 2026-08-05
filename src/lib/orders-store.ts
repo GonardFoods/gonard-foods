@@ -57,6 +57,10 @@ export interface WebOrder {
   archivedAt?: string;
   sageSynced?: boolean;
   invoiceEmailSent?: boolean;
+  stripePaid?: boolean;          // this specific order was paid in full via Stripe
+  stripePaidAt?: string;         // ISO
+  stripeAmountCharged?: number;  // invoiceTotal + surcharge, what the card was actually charged
+  stripeSessionId?: string;
 }
 
 export async function getOrders(): Promise<WebOrder[]> {

@@ -8,6 +8,7 @@ import { customerSessionOptions, type CustomerSession } from "@/lib/customer-ses
 import { getCustomerById } from "@/lib/customers-store";
 import { getOrders } from "@/lib/orders-store";
 import { getPaymentsByCustomer } from "@/lib/payments-store";
+import { getOutstandingBalance } from "@/lib/balance";
 
 const STATUS_LABELS: Record<string, string> = {
   pending:   "Pending",
@@ -47,13 +48,7 @@ export default async function AccountPage() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const payments = await getPaymentsByCustomer(customer.id);
-
-  // Compute outstanding balance from delivered orders minus payments received
-  const totalInvoiced = myOrders
-    .filter((o) => o.status === "fulfilled")
-    .reduce((sum, o) => sum + (o.invoiceTotal ?? 0), 0);
-  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const outstandingBalance = Math.max(0, totalInvoiced - totalPaid);
+  const outstandingBalance = await getOutstandingBalance(customer);
 
   const { passwordHash: _, ...pub } = customer;
 
@@ -88,7 +83,16 @@ export default async function AccountPage() {
                   From {myOrders.filter((o) => o.status === "fulfilled").length === 1 ? "1 delivered order" : `${myOrders.filter((o) => o.status === "fulfilled").length} delivered orders`}
                 </p>
               </div>
-              <PayButton amount={outstandingBalance} />
+              <div className="flex flex-col items-end gap-2">
+                <PayButton amount={outstandingBalance} />
+                <a
+                  href="/api/account/pay"
+                  className="text-xs font-bold tracking-widest uppercase underline hover:opacity-70 transition-opacity"
+                  style={{ color: "#854d0e", fontFamily: "var(--font-brand), sans-serif" }}
+                >
+                  Pay Online (+3% card fee)
+                </a>
+              </div>
             </div>
           ) : (
             <div className="p-4 flex items-center gap-3" style={{ backgroundColor: "#dcfce7", border: "1px solid #bbf7d0" }}>

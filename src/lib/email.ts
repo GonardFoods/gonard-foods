@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import type { WebOrder } from "./orders-store";
+import { getSiteUrl, STRIPE_SURCHARGE_RATE } from "./stripe";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -109,7 +110,8 @@ export async function sendOrderAcceptedEmail(order: WebOrder): Promise<void> {
 
 export async function sendInvoiceEmail(order: WebOrder): Promise<void> {
   const resend = getResend();
-  const { customer, items, id, invoiceTotal, invoicedAt } = order;
+  const { customer, items, id, invoiceTotal, invoicedAt, stripePaid } = order;
+  const payUrl = `${getSiteUrl()}/api/orders/${id}/pay`;
 
   const dateStr = invoicedAt
     ? new Date(invoicedAt).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })
@@ -209,6 +211,27 @@ export async function sendInvoiceEmail(order: WebOrder): Promise<void> {
             </table>
           </td>
         </tr>
+
+        ${!stripePaid && invoiceTotal != null ? `
+        <!-- Pay online -->
+        <tr>
+          <td style="padding:16px 32px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f8fb;border:1px solid #03033f14;">
+              <tr>
+                <td style="padding:18px 20px;">
+                  <p style="margin:0 0 12px;font-size:12px;color:#03033f99;line-height:1.6;">
+                    Pay by e-transfer any time — no fee. Prefer to pay by card instead? A
+                    ${STRIPE_SURCHARGE_RATE * 100}% processing surcharge applies to cover card fees.
+                  </p>
+                  <a href="${payUrl}" style="display:inline-block;padding:10px 22px;background:#03033f;color:#ffffff;font-size:12px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;text-decoration:none;">
+                    Pay Online by Card
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        ` : ""}
 
         <!-- Note -->
         <tr>
