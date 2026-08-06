@@ -39,6 +39,9 @@ yarn-error.log*
 # python (sage-agent)
 __pycache__/
 *.pyc
+# real secrets/paths - never overwrite the company PC's filled-in copy;
+# see sage-agent/config.example.py for the template
+sage-agent/config.py
 
 # typescript
 *.tsbuildinfo

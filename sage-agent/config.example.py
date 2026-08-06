@@ -1,5 +1,6 @@
-# sage-agent/config.py
-# Fill in all REPLACE_WITH_* values before running agent.py.
+# sage-agent/config.example.py
+# Copy this to config.py (gitignored) and fill in all REPLACE_WITH_* values
+# before running agent.py. Never overwrite an existing config.py with this file.
 
 # --- Web app ---
 WEB_APP_URL = "https://gonard-foods.vercel.app"  # no trailing slash

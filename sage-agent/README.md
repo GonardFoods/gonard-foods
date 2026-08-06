@@ -9,7 +9,16 @@ Runs on the company PC. Syncs web-app customers and invoiced orders to Sage 50.
 ```
 cd sage-agent
 pip install -r requirements.txt
+copy config.example.py config.py
 ```
+
+`config.py` holds real secrets and a machine-specific path — it is gitignored on
+purpose and must never be replaced by copying files from a fresh checkout of this
+repo. If you're setting up a new machine or replacing files, only copy
+`config.example.py` in as a template; leave an existing `config.py` alone, or you'll
+overwrite real credentials with placeholders (this happened once already — see
+`agent.log` around 2026-08-06 for what that looks like: an SDK "file not found" error
+and a 401 from the web app).
 
 Edit `config.py` — fill in all `REPLACE_WITH_*` values:
 
