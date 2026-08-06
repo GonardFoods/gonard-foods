@@ -19,9 +19,15 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Any order that's been finalized (has a price) but never pushed to Sage —
+  // NOT gated on status === "invoiced" specifically. An order keeps moving
+  // through its lifecycle (invoiced -> fulfilled -> archived) independent of
+  // whether the Sage agent has actually run; if it advances past "invoiced"
+  // before the agent gets to it (e.g. the agent was down), it must still be
+  // found here, not silently skipped forever.
   const unsynced = params.get("unsynced") === "true";
   const result = unsynced
-    ? orders.filter((o) => o.status === "invoiced" && !o.sageSynced)
+    ? orders.filter((o) => o.invoiceTotal != null && !o.sageSynced && o.status !== "cancelled")
     : orders;
   return NextResponse.json(result);
 }
