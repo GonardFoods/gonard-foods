@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrders } from "@/lib/orders-store";
+import { getOrders, isDelivered } from "@/lib/orders-store";
 
 function auth(req: NextRequest) {
   const key = req.headers.get("x-agent-key");
@@ -7,15 +7,18 @@ function auth(req: NextRequest) {
 }
 
 // GET /api/agent/orders?unsynced=true
-// GET /api/agent/orders?needsInvoiceEmail=true  — fulfilled + sageSynced + invoiceEmailSent not set
+// GET /api/agent/orders?needsInvoiceEmail=true  — delivered + sageSynced + invoiceEmailSent not set
 export async function GET(req: NextRequest) {
   if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const params = req.nextUrl.searchParams;
   const orders = await getOrders();
 
   if (params.get("needsInvoiceEmail") === "true") {
+    // isDelivered (fulfilled or archived), not status === "fulfilled" alone —
+    // an order archived before its invoice email ever went out must still be
+    // found here, same reasoning as the unsynced-orders query below.
     return NextResponse.json(
-      orders.filter((o) => o.status === "fulfilled" && o.sageSynced && !o.invoiceEmailSent)
+      orders.filter((o) => isDelivered(o.status) && o.sageSynced && !o.invoiceEmailSent)
     );
   }
 

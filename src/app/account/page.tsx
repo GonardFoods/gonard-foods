@@ -6,7 +6,7 @@ import DeleteAccountButton from "./DeleteAccountButton";
 import { PayButton } from "./PayModal";
 import { customerSessionOptions, type CustomerSession } from "@/lib/customer-session";
 import { getCustomerById } from "@/lib/customers-store";
-import { getOrders } from "@/lib/orders-store";
+import { getOrders, isDelivered } from "@/lib/orders-store";
 import { getPaymentsByCustomer } from "@/lib/payments-store";
 import { getOutstandingBalance } from "@/lib/balance";
 
@@ -80,7 +80,7 @@ export default async function AccountPage() {
                   {fmtMoney(outstandingBalance)}
                 </p>
                 <p className="text-xs mt-2" style={{ color: "#92400e" }}>
-                  From {myOrders.filter((o) => o.status === "fulfilled").length === 1 ? "1 delivered order" : `${myOrders.filter((o) => o.status === "fulfilled").length} delivered orders`}
+                  From {myOrders.filter((o) => isDelivered(o.status)).length === 1 ? "1 delivered order" : `${myOrders.filter((o) => isDelivered(o.status)).length} delivered orders`}
                 </p>
               </div>
               <div className="flex flex-col items-end gap-2">

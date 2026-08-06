@@ -63,6 +63,15 @@ export interface WebOrder {
   stripeSessionId?: string;
 }
 
+// "fulfilled" and "archived" both mean the order was delivered — archiving is
+// just an admin workflow/decluttering step, not a payment or delivery state.
+// Anything comparing invoiced-vs-paid amounts must treat them identically, or
+// archiving an order silently drops its invoice total while its payment stays
+// counted, understating the customer's balance from then on.
+export function isDelivered(status: OrderStatus): boolean {
+  return status === "fulfilled" || status === "archived";
+}
+
 export async function getOrders(): Promise<WebOrder[]> {
   const kv = getKV();
   if (!kv) return [];
