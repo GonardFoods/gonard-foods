@@ -55,6 +55,7 @@ export interface WebOrder {
   invoicedAt?: string;
   fulfilledAt?: string;
   archivedAt?: string;
+  cancelledAt?: string;
   sageSynced?: boolean;
   invoiceEmailSent?: boolean;
   stripePaid?: boolean;          // this specific order was paid in full via Stripe

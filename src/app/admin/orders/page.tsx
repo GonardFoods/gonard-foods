@@ -589,6 +589,18 @@ export default function CustomerOrders() {
     }
   }
 
+  function cancelOrder(order: WebOrder) {
+    const lines = ["Cancel this order?"];
+    if (order.invoiceTotal != null) {
+      lines.push(`This removes ${fmtMoney(order.invoiceTotal)} from ${order.customer.name}'s outstanding balance.`);
+    }
+    if (order.stripePaid) {
+      lines.push(`⚠ This order was already paid via Stripe (${fmtMoney(order.stripeAmountCharged ?? order.invoiceTotal ?? 0)} charged). Cancelling will NOT automatically refund the customer — you'll need to issue that refund manually in Stripe.`);
+    }
+    if (!window.confirm(lines.join("\n\n"))) return;
+    setStatus(order.id, "cancelled");
+  }
+
   function exportCsv(status: "pending" | "all") {
     window.location.href = `/api/admin/orders/export?status=${status}`;
   }
@@ -750,12 +762,20 @@ export default function CustomerOrders() {
                             <>
                               <button disabled={updating === order.id} onClick={() => setStatus(order.id, "fulfilled")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap" style={{ backgroundColor: "#16a34a", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Mark Delivered</button>
                               <button disabled={updating === order.id} onClick={() => setStatus(order.id, "pending")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}>Reopen</button>
+                              <button disabled={updating === order.id} onClick={() => cancelOrder(order)} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}>Cancel</button>
                             </>
                           )}
                           {order.status === "fulfilled" && (
                             <>
                               <button disabled={updating === order.id} onClick={() => setStatus(order.id, "archived")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ backgroundColor: "#475569", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Archive</button>
                               <button disabled={updating === order.id} onClick={() => setStatus(order.id, "invoiced")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}>Reopen</button>
+                              <button disabled={updating === order.id} onClick={() => cancelOrder(order)} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}>Cancel</button>
+                            </>
+                          )}
+                          {order.status === "archived" && (
+                            <>
+                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "fulfilled")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}>Reopen</button>
+                              <button disabled={updating === order.id} onClick={() => cancelOrder(order)} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}>Cancel</button>
                             </>
                           )}
                           {order.status === "cancelled" && (
@@ -777,6 +797,7 @@ export default function CustomerOrders() {
                               {order.invoicedAt && <span><strong style={{ color: "#03033f" }}>Invoiced:</strong> {fmt(order.invoicedAt)}</span>}
                               {order.fulfilledAt && <span><strong style={{ color: "#03033f" }}>Delivered:</strong> {fmt(order.fulfilledAt)}</span>}
                               {order.archivedAt && <span><strong style={{ color: "#03033f" }}>Archived:</strong> {fmt(order.archivedAt)}</span>}
+                              {order.cancelledAt && <span><strong style={{ color: "#03033f" }}>Cancelled:</strong> {fmt(order.cancelledAt)}</span>}
                             </div>
                             <div className="overflow-x-auto" style={{ maxWidth: "100%" }}>
                             <table className="text-xs border-collapse" style={{ minWidth: 600 }}>

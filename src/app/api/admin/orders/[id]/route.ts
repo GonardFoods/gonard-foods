@@ -51,10 +51,12 @@ export async function PUT(
     acceptedAt?: string;
     fulfilledAt?: string;
     archivedAt?: string;
+    cancelledAt?: string;
   } = { status };
   if (status === "accepted") patch.acceptedAt = now;
   if (status === "fulfilled") patch.fulfilledAt = now;
   if (status === "archived") patch.archivedAt = now;
+  if (status === "cancelled") patch.cancelledAt = now;
 
   const updated = await updateOrder(id, patch);
   if (!updated) return Response.json({ error: "Order not found." }, { status: 404 });
