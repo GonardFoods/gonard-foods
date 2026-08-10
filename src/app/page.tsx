@@ -90,8 +90,14 @@ export default async function Home() {
             >
               Premium Meat Wholesale
             </p>
+            <p
+              className="text-white/70 text-sm tracking-[0.25em] uppercase"
+              style={{ fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              Service Is Our Specialty
+            </p>
             <p className="text-white/50 text-sm tracking-widest uppercase">
-              Calgary, Alberta
+              Proudly Serving Alberta for Over 25 Years
             </p>
           </div>
 
@@ -243,7 +249,7 @@ export default async function Home() {
           </h2>
           <div className="w-12 h-0.5 bg-white/30" />
           <p className="text-white/70 leading-relaxed text-base">
-            Gonard Foods is a Calgary-based meat wholesaler supplying premium cuts to restaurants and food service businesses across Alberta. We pride ourselves on quality, consistency, and building lasting relationships with our clients.
+            Gonard Foods is a Calgary-based meat wholesaler proudly serving Alberta for over 25 years, supplying premium cuts to restaurants and food service businesses across the province. We pride ourselves on quality, consistency, and building lasting relationships with our clients.
           </p>
           <Link
             href="/about"
