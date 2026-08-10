@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -62,23 +63,44 @@ export default function About() {
 
       {/* Story */}
       <section className="py-24 px-6 bg-white">
-        <div className="max-w-3xl mx-auto flex flex-col gap-8">
-          <h2
-            className="text-2xl font-bold tracking-[0.12em] uppercase"
-            style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
-          >
-            Our Story
-          </h2>
-          <div className="w-10 h-0.5" style={{ backgroundColor: "#03033f" }} />
-          <div className="flex flex-col gap-5 text-base leading-relaxed" style={{ color: "#03033f99" }}>
-            <p>
-              Gonard Foods is a Calgary-based meat wholesaler proudly serving Alberta for over 25 years, supplying premium quality cuts to restaurants and food service businesses across the province.
-            </p>
-            <p>
-              We work directly with trusted suppliers to bring a wide selection of beef, poultry, lamb, goat, turkey, duck, and seafood — over 80 products — at competitive wholesale pricing.
-            </p>
-            <p>
-              Our clients include some of Calgary&apos;s finest restaurants, food service operations, and institutions. We offer recurring wholesale accounts with pricing tailored to your volume and needs.
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-14 items-start">
+          <div className="flex flex-col gap-8">
+            <h2
+              className="text-2xl font-bold tracking-[0.12em] uppercase"
+              style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+            >
+              Our Story
+            </h2>
+            <div className="w-10 h-0.5" style={{ backgroundColor: "#03033f" }} />
+            <div className="flex flex-col gap-6 text-lg leading-relaxed" style={{ color: "#03033f99" }}>
+              <p>
+                Gonard Foods is a Calgary-based meat wholesaler proudly serving Alberta for over 25 years, supplying premium quality cuts to restaurants and food service businesses across the province. What started as a small, family-driven operation has grown into one of Calgary&apos;s most trusted names in wholesale meat, built one relationship at a time with the kitchens, caterers, and grocers who rely on us week after week.
+              </p>
+              <p>
+                We work directly with trusted suppliers to bring a wide selection of beef, poultry, lamb, goat, turkey, duck, and seafood — over 80 products — at competitive wholesale pricing. Every product that leaves our facility is selected, handled, and inspected with the same care, whether it&apos;s a single case for a neighborhood restaurant or a standing weekly order for a multi-location operation. Consistency is what keeps a kitchen running smoothly, so we hold ourselves to that standard on every delivery.
+              </p>
+              <p>
+                Our clients include some of Calgary&apos;s finest restaurants, food service operations, and institutions. Whether you&apos;re a fine-dining kitchen looking for specialty cuts, a caterer needing bulk orders on a tight timeline, or a growing business just getting started, we offer recurring wholesale accounts with pricing and delivery schedules tailored to how you actually operate.
+              </p>
+              <p>
+                From the foothills of the Rockies to the kitchens of downtown Calgary, service is our specialty — and after 25 years, it still shows in every order we deliver.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 lg:sticky lg:top-24">
+            <div className="relative w-full overflow-hidden" style={{ aspectRatio: "4 / 5", border: "1px solid #03033f1a" }}>
+              <Image
+                src="/images/alberta-rockies.jpg"
+                alt="Mount Rundle rising over the Canadian Rockies near Banff, Alberta"
+                fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                className="object-cover"
+                priority
+              />
+            </div>
+            <p className="text-xs" style={{ color: "#03033f66" }}>
+              Mount Rundle, Banff, Alberta — Photo: Chris Woodrich / Wikimedia Commons (CC BY-SA 4.0)
             </p>
           </div>
         </div>
@@ -107,7 +129,7 @@ export default function About() {
                   {value.title}
                 </h3>
                 <div className="w-8 h-0.5" style={{ backgroundColor: "#03033f33" }} />
-                <p className="text-sm leading-relaxed" style={{ color: "#03033f99" }}>
+                <p className="text-base leading-relaxed" style={{ color: "#03033f99" }}>
                   {value.description}
                 </p>
               </div>
@@ -139,7 +161,7 @@ export default function About() {
                 >
                   {area.region}
                 </h3>
-                <p className="text-sm leading-relaxed" style={{ color: "#03033f99" }}>
+                <p className="text-base leading-relaxed" style={{ color: "#03033f99" }}>
                   {area.detail}
                 </p>
               </div>
