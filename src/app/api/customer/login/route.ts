@@ -1,7 +1,7 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { customerSessionOptions, type CustomerSession } from "@/lib/customer-session";
-import { getCustomerByEmail, verifyPassword } from "@/lib/customers-store";
+import { getCustomerByEmail, verifyPassword, isLegacyHash, hashPassword, updateCustomer } from "@/lib/customers-store";
 import { checkRateLimit, getIP } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
@@ -18,6 +18,13 @@ export async function POST(req: Request) {
   if (!customer || !(await verifyPassword(password, customer.passwordHash))) {
     return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
+
+  // Transparently upgrade older, weaker password hashes on successful login —
+  // no forced reset needed, and it self-heals the whole customer base over time.
+  if (isLegacyHash(customer.passwordHash)) {
+    await updateCustomer(customer.id, { passwordHash: await hashPassword(password) });
+  }
+
   const session = await getIronSession<CustomerSession>(await cookies(), customerSessionOptions);
   session.customerId = customer.id;
   session.customerName = customer.name;

@@ -2,6 +2,14 @@ import { Resend } from "resend";
 import type { WebOrder } from "./orders-store";
 import { getSiteUrl, STRIPE_SURCHARGE_RATE } from "./stripe";
 
+// Defense in depth: even though item names are now derived from the trusted
+// product catalog server-side (see /api/orders), customer name/company/email
+// are always free-text user input and get interpolated into raw HTML strings
+// here (not React, so nothing escapes it automatically) — never skip this.
+function esc(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function getResend() {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("RESEND_API_KEY not set");
@@ -18,7 +26,7 @@ export async function sendOrderAcceptedEmail(order: WebOrder): Promise<void> {
     .map(
       (item) =>
         `<tr>
-          <td style="padding:6px 12px 6px 0;font-size:13px;color:#03033f;">${item.name}</td>
+          <td style="padding:6px 12px 6px 0;font-size:13px;color:#03033f;">${esc(item.name)}</td>
           <td style="padding:6px 0;font-size:13px;color:#03033f;text-align:right;">${item.qty} ${item.qty === 1 ? "case" : "cases"}</td>
         </tr>`
     )
@@ -58,7 +66,7 @@ export async function sendOrderAcceptedEmail(order: WebOrder): Promise<void> {
             </p>
 
             <p style="margin:0 0 20px;font-size:14px;color:#03033f;line-height:1.6;">
-              Hi ${customer.name},<br><br>
+              Hi ${esc(customer.name)},<br><br>
               We've received your order and confirmed we'll have your products ready.
               ${fulfillmentLine}
             </p>
@@ -134,7 +142,7 @@ export async function sendInvoiceEmail(order: WebOrder): Promise<void> {
       : "—";
     const totalCell = item.lineTotal != null ? fmtMoney(item.lineTotal) : "—";
     return `<tr style="border-bottom:1px solid #03033f08;">
-      <td style="padding:8px 12px 8px 0;font-size:13px;color:#03033f;">${item.name}</td>
+      <td style="padding:8px 12px 8px 0;font-size:13px;color:#03033f;">${esc(item.name)}</td>
       <td style="padding:8px 12px;font-size:13px;color:#03033f88;text-align:center;">${qtyCell}</td>
       <td style="padding:8px 12px;font-size:13px;color:#03033f88;text-align:right;">${priceCell}</td>
       <td style="padding:8px 0;font-size:13px;font-weight:bold;color:#03033f;text-align:right;">${totalCell}</td>
@@ -173,8 +181,8 @@ export async function sendInvoiceEmail(order: WebOrder): Promise<void> {
                 </td>
                 <td style="font-size:12px;color:#03033f88;text-align:right;">
                   <strong style="color:#03033f;">Bill To</strong><br>
-                  ${customer.name}${customer.company ? `<br>${customer.company}` : ""}<br>
-                  ${customer.email}
+                  ${esc(customer.name)}${customer.company ? `<br>${esc(customer.company)}` : ""}<br>
+                  ${esc(customer.email)}
                 </td>
               </tr>
             </table>

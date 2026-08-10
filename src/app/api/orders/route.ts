@@ -51,7 +51,10 @@ export async function POST(req: Request) {
     const orderItems: OrderItem[] = items.map((i) => ({
       productId: i.productId,
       itemNo: productMap.get(i.productId)?.itemNo ?? i.productId,
-      name: i.name,
+      // Trust the catalog name, not whatever the client sent — item.name ends up
+      // rendered unescaped-adjacent in admin views and interpolated into HTML
+      // emails, so it must not be arbitrary client-controlled text.
+      name: productMap.get(i.productId)?.name ?? i.name,
       qty: i.qty,
     }));
 

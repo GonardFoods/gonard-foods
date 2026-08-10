@@ -10,8 +10,12 @@ async function isAdmin() {
 
 function csvEscape(v: string | number | undefined) {
   if (v == null) return "";
-  const s = String(v);
-  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+  let s = String(v);
+  // Formula injection: order notes/name are customer-controlled free text. If a
+  // cell starts with =, +, -, or @, Excel/Sheets treats it as a formula on open -
+  // prefix with a tab so it's always read back as inert text.
+  if (/^[=+\-@]/.test(s)) s = "\t" + s;
+  if (s.includes(",") || s.includes('"') || s.includes("\n") || s.startsWith("\t")) {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
