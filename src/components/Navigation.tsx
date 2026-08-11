@@ -255,13 +255,22 @@ export default function Navigation({ isAdmin, customer }: { isAdmin?: boolean; c
             Order Now
           </Link>
           {!isAdmin && !customer && (
-            <Link
-              href="/login"
-              className="text-white/25 hover:text-white/50 text-xs tracking-widest uppercase transition-colors duration-200"
-              style={{ fontFamily: "var(--font-brand), sans-serif" }}
-            >
-              Admin
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/login"
+                className="text-white/25 hover:text-white/50 text-xs tracking-widest uppercase transition-colors duration-200"
+                style={{ fontFamily: "var(--font-brand), sans-serif" }}
+              >
+                Admin
+              </Link>
+              <Link
+                href="/driver-login"
+                className="text-white/25 hover:text-white/50 text-xs tracking-widest uppercase transition-colors duration-200"
+                style={{ fontFamily: "var(--font-brand), sans-serif" }}
+              >
+                Driver
+              </Link>
+            </div>
           )}
         </div>
 
@@ -354,9 +363,14 @@ export default function Navigation({ isAdmin, customer }: { isAdmin?: boolean; c
               <Link href="/account/signup" className="self-start px-4 py-2 text-sm font-bold tracking-widest uppercase hover:bg-white/90 transition-colors" style={{ backgroundColor: "#fff", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
                 Sign Up
               </Link>
-              <Link href="/login" className="text-white/25 hover:text-white/50 text-xs tracking-widest uppercase transition-colors" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
-                Admin
-              </Link>
+              <div className="flex items-center gap-4">
+                <Link href="/login" className="text-white/25 hover:text-white/50 text-xs tracking-widest uppercase transition-colors" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
+                  Admin
+                </Link>
+                <Link href="/driver-login" className="text-white/25 hover:text-white/50 text-xs tracking-widest uppercase transition-colors" style={{ fontFamily: "var(--font-brand), sans-serif" }} onClick={() => setMobileOpen(false)}>
+                  Driver
+                </Link>
+              </div>
             </>
           )}
           <Link
