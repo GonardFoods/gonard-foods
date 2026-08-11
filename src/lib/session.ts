@@ -30,8 +30,13 @@ export const sessionOptions: SessionOptions = {
 
 // Separate, lower-privilege session for the driver-facing delivery/signature app.
 // Distinct cookie from admin so a device left in a truck never carries admin access.
+// One shared login (isDriver) can be used by any driver; selectedDriverId/-Name track
+// which specific driver picked their name on this device, so a shared tablet can be
+// handed off between drivers on a route without re-entering the shared password.
 export interface DriverSession {
   isDriver?: boolean;
+  selectedDriverId?: string;
+  selectedDriverName?: string;
 }
 
 export const driverSessionOptions: SessionOptions = {

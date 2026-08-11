@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { WebOrder, OrderStatus, OrderItem } from "@/lib/orders-store";
 import type { PublicCustomer } from "@/lib/customers-store";
+import type { Driver } from "@/lib/drivers-store";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -547,6 +548,7 @@ export default function CustomerOrders() {
   const [orders, setOrders] = useState<WebOrder[]>([]);
   const [customers, setCustomers] = useState<PublicCustomer[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<FilterKey>("pending");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -557,14 +559,16 @@ export default function CustomerOrders() {
   async function load() {
     setLoading(true);
     try {
-      const [ordersRes, customersRes, productsRes] = await Promise.all([
+      const [ordersRes, customersRes, productsRes, driversRes] = await Promise.all([
         fetch("/api/admin/orders"),
         fetch("/api/customers"),
         fetch("/api/admin/products-list"),
+        fetch("/api/admin/drivers"),
       ]);
       if (ordersRes.ok) setOrders(await ordersRes.json());
       if (customersRes.ok) setCustomers(await customersRes.json());
       if (productsRes.ok) setProducts(await productsRes.json());
+      if (driversRes.ok) setDrivers(await driversRes.json());
     } finally {
       setLoading(false);
     }
@@ -599,6 +603,23 @@ export default function CustomerOrders() {
     }
     if (!window.confirm(lines.join("\n\n"))) return;
     setStatus(order.id, "cancelled");
+  }
+
+  async function assignDriver(id: string, driverId: string) {
+    setUpdating(id);
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/assign`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driverId: driverId || null }),
+      });
+      if (res.ok) {
+        const updated: WebOrder = await res.json();
+        setOrders((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      }
+    } finally {
+      setUpdating(null);
+    }
   }
 
   function exportCsv(status: "pending" | "all") {
@@ -761,13 +782,27 @@ export default function CustomerOrders() {
                           {order.status === "invoiced" && (
                             <>
                               {order.fulfillment === "delivery" && (
-                                <span
-                                  className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase whitespace-nowrap"
-                                  style={{ backgroundColor: "#fef9c3", color: "#854d0e", fontFamily: "var(--font-brand), sans-serif" }}
-                                  title="This order will be marked delivered automatically once the driver collects a signature at /driver"
-                                >
-                                  Awaiting Driver Signature
-                                </span>
+                                <>
+                                  <select
+                                    value={order.assignedDriverId ?? ""}
+                                    disabled={updating === order.id}
+                                    onChange={(e) => assignDriver(order.id, e.target.value)}
+                                    className="px-2 py-1.5 text-xs"
+                                    style={{ border: "1px solid #03033f33", color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}
+                                  >
+                                    <option value="">Unassigned</option>
+                                    {drivers.filter((d) => d.active || d.id === order.assignedDriverId).map((d) => (
+                                      <option key={d.id} value={d.id}>{d.name}</option>
+                                    ))}
+                                  </select>
+                                  <span
+                                    className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase whitespace-nowrap"
+                                    style={{ backgroundColor: "#fef9c3", color: "#854d0e", fontFamily: "var(--font-brand), sans-serif" }}
+                                    title="This order will be marked delivered automatically once the assigned driver collects a signature at /driver"
+                                  >
+                                    Awaiting Driver Signature
+                                  </span>
+                                </>
                               )}
                               <button
                                 disabled={updating === order.id}
@@ -812,6 +847,9 @@ export default function CustomerOrders() {
                               {order.customer.phone && <span><strong style={{ color: "#03033f" }}>Phone:</strong> {order.customer.phone}</span>}
                               {order.customer.company && <span><strong style={{ color: "#03033f" }}>Company:</strong> {order.customer.company}</span>}
                               {order.fulfillment && <span><strong style={{ color: "#03033f" }}>Fulfillment:</strong> {order.fulfillment === "delivery" ? `Delivery${order.address ? ` — ${order.address}` : ""}` : "Pick-Up"}</span>}
+                              {order.fulfillment === "delivery" && order.assignedDriverId && (
+                                <span><strong style={{ color: "#03033f" }}>Driver:</strong> {drivers.find((d) => d.id === order.assignedDriverId)?.name ?? "Unknown"}</span>
+                              )}
                               {order.acceptedAt && <span><strong style={{ color: "#03033f" }}>Accepted:</strong> {fmt(order.acceptedAt)}</span>}
                               {order.invoicedAt && <span><strong style={{ color: "#03033f" }}>Invoiced:</strong> {fmt(order.invoicedAt)}</span>}
                               {order.fulfilledAt && <span><strong style={{ color: "#03033f" }}>Delivered:</strong> {fmt(order.fulfilledAt)}</span>}

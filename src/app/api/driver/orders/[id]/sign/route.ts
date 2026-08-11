@@ -4,9 +4,8 @@ import { cookies } from "next/headers";
 import { driverSessionOptions, type DriverSession } from "@/lib/session";
 import { getOrders, updateOrder } from "@/lib/orders-store";
 
-async function isDriver() {
-  const session = await getIronSession<DriverSession>(await cookies(), driverSessionOptions);
-  return session.isDriver === true;
+async function getSession() {
+  return getIronSession<DriverSession>(await cookies(), driverSessionOptions);
 }
 
 function getBlobToken(): string | undefined {
@@ -22,7 +21,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isDriver())) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session.isDriver) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
   const body = await req.json() as { signatureDataUrl?: string; signedByName?: string };
@@ -34,8 +34,13 @@ export async function POST(
 
   const orders = await getOrders();
   const order = orders.find((o) => o.id === id);
-  if (!order || order.status !== "invoiced" || order.fulfillment !== "delivery") {
-    return Response.json({ error: "Order is not awaiting a delivery signature." }, { status: 400 });
+  if (
+    !order ||
+    order.status !== "invoiced" ||
+    order.fulfillment !== "delivery" ||
+    order.assignedDriverId !== session.selectedDriverId
+  ) {
+    return Response.json({ error: "Order is not awaiting a delivery signature from you." }, { status: 400 });
   }
 
   const bytes = Buffer.from(match[1], "base64");

@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { label: "Supplier Orders",  href: "/admin/supplier-orders" },
   { label: "Customer Orders",  href: "/admin/orders" },
   { label: "Customers",        href: "/admin/customers" },
+  { label: "Drivers",          href: "/admin/drivers" },
   { label: "Inventory",        href: "/admin/inventory" },
   { label: "Team Photos",      href: "/admin/team" },
   { label: "Homepage",         href: "/admin/homepage" },
