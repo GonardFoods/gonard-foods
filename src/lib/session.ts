@@ -27,3 +27,19 @@ export const sessionOptions: SessionOptions = {
     maxAge: 60 * 60 * 8, // 8-hour session
   },
 };
+
+// Separate, lower-privilege session for the driver-facing delivery/signature app.
+// Distinct cookie from admin so a device left in a truck never carries admin access.
+export interface DriverSession {
+  isDriver?: boolean;
+}
+
+export const driverSessionOptions: SessionOptions = {
+  password: getSessionPassword(),
+  cookieName: "gonard-driver",
+  cookieOptions: {
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 12, // 12-hour session — covers a full delivery shift
+  },
+};

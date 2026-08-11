@@ -760,7 +760,26 @@ export default function CustomerOrders() {
                           )}
                           {order.status === "invoiced" && (
                             <>
-                              <button disabled={updating === order.id} onClick={() => setStatus(order.id, "fulfilled")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap" style={{ backgroundColor: "#16a34a", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}>Mark Delivered</button>
+                              {order.fulfillment === "delivery" && (
+                                <span
+                                  className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase whitespace-nowrap"
+                                  style={{ backgroundColor: "#fef9c3", color: "#854d0e", fontFamily: "var(--font-brand), sans-serif" }}
+                                  title="This order will be marked delivered automatically once the driver collects a signature at /driver"
+                                >
+                                  Awaiting Driver Signature
+                                </span>
+                              )}
+                              <button
+                                disabled={updating === order.id}
+                                onClick={() => setStatus(order.id, "fulfilled")}
+                                title={order.fulfillment === "delivery" ? "Manual override — normally the driver's signature does this" : undefined}
+                                className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40 whitespace-nowrap"
+                                style={order.fulfillment === "delivery"
+                                  ? { border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }
+                                  : { backgroundColor: "#16a34a", color: "#fff", fontFamily: "var(--font-brand), sans-serif" }}
+                              >
+                                {order.fulfillment === "delivery" ? "Mark Delivered (Override)" : "Mark Delivered"}
+                              </button>
                               <button disabled={updating === order.id} onClick={() => setStatus(order.id, "pending")} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #03033f33", color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}>Reopen</button>
                               <button disabled={updating === order.id} onClick={() => cancelOrder(order)} className="text-xs font-bold px-3 py-1.5 tracking-widest uppercase transition-opacity hover:opacity-70 disabled:opacity-40" style={{ border: "1px solid #dc262633", color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}>Cancel</button>
                             </>
@@ -859,6 +878,25 @@ export default function CustomerOrders() {
                               </p>
                             )}
                             {order.notes && <p className="text-xs" style={{ color: "#03033f88" }}><strong style={{ color: "#03033f" }}>Notes:</strong> {order.notes}</p>}
+                            {order.proofOfDelivery && (
+                              <div className="flex items-center gap-4 p-3" style={{ backgroundColor: "#f0fdf4", border: "1px solid #16a34a33" }}>
+                                <a href={order.proofOfDelivery.signatureUrl} target="_blank" rel="noopener noreferrer" title="Open full-size signature">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={order.proofOfDelivery.signatureUrl}
+                                    alt="Customer signature"
+                                    style={{ height: 48, backgroundColor: "#fff", border: "1px solid #03033f14" }}
+                                  />
+                                </a>
+                                <div className="text-xs" style={{ color: "#166534" }}>
+                                  <div className="font-bold">Proof of Delivery Signed</div>
+                                  <div>
+                                    {order.proofOfDelivery.signedByName ? `${order.proofOfDelivery.signedByName} · ` : ""}
+                                    {fmt(order.proofOfDelivery.signedAt)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -40,6 +40,13 @@ export interface CustomerInfo {
 
 export type OrderStatus = "pending" | "accepted" | "invoiced" | "fulfilled" | "cancelled" | "archived";
 
+// Captured by a driver on delivery, replacing the old signed-paper-copy process.
+export interface ProofOfDelivery {
+  signatureUrl: string;
+  signedAt: string; // ISO
+  signedByName?: string; // printed name the customer typed in, since a scrawled signature alone can be illegible later
+}
+
 export interface WebOrder {
   id: string;
   createdAt: string; // ISO
@@ -56,6 +63,7 @@ export interface WebOrder {
   fulfilledAt?: string;
   archivedAt?: string;
   cancelledAt?: string;
+  proofOfDelivery?: ProofOfDelivery;
   sageSynced?: boolean;
   invoiceEmailSent?: boolean;
   stripePaid?: boolean;          // this specific order was paid in full via Stripe
