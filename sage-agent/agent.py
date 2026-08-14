@@ -239,7 +239,10 @@ def create_sage_invoice(order: dict, customer_by_id: dict) -> bool:
         sal = SDKInstanceManager.Instance.OpenSalesJournal()
         try:
             sal.SelectTransType(0)                    # 0 = invoice (not order/quote)
-            sal.InvoiceNumber = order["id"][:20]      # web order ID as invoice number
+            # Deliberately not setting sal.InvoiceNumber — leaving it untouched lets
+            # Sage auto-assign the next number in its own sequence, keeping the count
+            # meaningful (e.g. 154210 following in-store invoice 154209) instead of
+            # stamping in the long web order id.
             sal.SelectAPARLedger(sage_customer_name)  # either the linked sageName, or just-ensured
             sal.SelectPaidByType("Pay Later")         # outstanding balance
 
@@ -248,21 +251,33 @@ def create_sage_invoice(order: dict, customer_by_id: dict) -> bool:
 
             for i, item in enumerate(order.get("items", []), start=1):
                 sal.SetItemNumber(item.get("itemNo", ""), i)
-                sal.SetQuantity(item.get("qty", 1), i)
-                sal.SetUnit("Case", i)
                 sal.SetDescription(item.get("name", ""), i)
 
                 pricing = item.get("pricingType", "per_weight")
+                price = item.get("pricePerUnit") or 0
+
                 if pricing == "per_weight":
-                    # lineTotal was computed at finalization (weight × price/unit)
-                    line_total = item.get("lineTotal") or 0
-                    qty = max(item.get("qty", 1), 1)
-                    sal.SetPrice(round(line_total / qty, 4), i)
-                    sal.SetLineAmount(line_total, i)
-                else:
-                    price = item.get("pricePerUnit") or 0
+                    # Web order qty is the box count, but this pricing type charges
+                    # per kg/lb — the invoice quantity must be the boxes' total
+                    # weight, not the box count, or the invoice reads wrong.
+                    total_weight = item.get("totalWeight") or 0
+                    sal.SetQuantity(total_weight, i)
+                    sal.SetUnit(item.get("weightUnit", "KG"), i)
                     sal.SetPrice(price, i)
-                    sal.SetLineAmount(price * item.get("qty", 1), i)
+                    sal.SetLineAmount(item.get("lineTotal") or 0, i)
+                elif pricing == "per_weight_direct":
+                    # qty IS the weight for this pricing type (no separate case count)
+                    qty = item.get("qty", 1)
+                    sal.SetQuantity(qty, i)
+                    sal.SetUnit(item.get("weightUnit", "LB"), i)
+                    sal.SetPrice(price, i)
+                    sal.SetLineAmount(price * qty, i)
+                else:  # per_box — flat price per box, qty is the box count
+                    qty = item.get("qty", 1)
+                    sal.SetQuantity(qty, i)
+                    sal.SetUnit("Case", i)
+                    sal.SetPrice(price, i)
+                    sal.SetLineAmount(price * qty, i)
 
             sal.SetComment(f"Web order {order['id']}")
 
