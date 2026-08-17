@@ -110,16 +110,19 @@ function FinalizeModal({
     if (!price || price <= 0) return null;
     const p = line.product;
     if (!p) return null;
+    // Round to the cent — price × weight (or × qty) routinely produces more than
+    // 2 decimal places in floating point, and Sage's SDK hard-rejects currency
+    // fields with more than 2 decimals when this invoice gets synced.
     if (p.pricingType === "per_box") {
-      return price * line.item.qty;
+      return Math.round(price * line.item.qty * 100) / 100;
     }
     const w = Number(line.totalWeight);
     if (!w || w <= 0) return null;
-    return price * w;
+    return Math.round(price * w * 100) / 100;
   }
 
   const orderTotal = lines.every((l) => lineTotal(l) !== null)
-    ? lines.reduce((s, l) => s + (lineTotal(l) ?? 0), 0)
+    ? Math.round(lines.reduce((s, l) => s + (lineTotal(l) ?? 0), 0) * 100) / 100
     : null;
 
   async function handleSubmit(e: React.FormEvent) {

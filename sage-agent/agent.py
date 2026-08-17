@@ -254,7 +254,11 @@ def create_sage_invoice(order: dict, customer_by_id: dict) -> bool:
                 sal.SetDescription(item.get("name", ""), i)
 
                 pricing = item.get("pricingType", "per_weight")
-                price = item.get("pricePerUnit") or 0
+                # Sage's SDK hard-rejects currency fields (price, line amount) with
+                # more than 2 decimals. price × weight/qty routinely produces more
+                # than that in floating point even when the web app already rounds
+                # at the source, so round every currency value again here too.
+                price = round(item.get("pricePerUnit") or 0, 2)
 
                 if pricing == "per_weight":
                     # Web order qty is the box count, but this pricing type charges
@@ -264,20 +268,20 @@ def create_sage_invoice(order: dict, customer_by_id: dict) -> bool:
                     sal.SetQuantity(total_weight, i)
                     sal.SetUnit(item.get("weightUnit", "KG"), i)
                     sal.SetPrice(price, i)
-                    sal.SetLineAmount(item.get("lineTotal") or 0, i)
+                    sal.SetLineAmount(round(item.get("lineTotal") or 0, 2), i)
                 elif pricing == "per_weight_direct":
                     # qty IS the weight for this pricing type (no separate case count)
                     qty = item.get("qty", 1)
                     sal.SetQuantity(qty, i)
                     sal.SetUnit(item.get("weightUnit", "LB"), i)
                     sal.SetPrice(price, i)
-                    sal.SetLineAmount(price * qty, i)
+                    sal.SetLineAmount(round(price * qty, 2), i)
                 else:  # per_box — flat price per box, qty is the box count
                     qty = item.get("qty", 1)
                     sal.SetQuantity(qty, i)
                     sal.SetUnit("Case", i)
                     sal.SetPrice(price, i)
-                    sal.SetLineAmount(price * qty, i)
+                    sal.SetLineAmount(round(price * qty, 2), i)
 
             sal.SetComment(f"Web order {order['id']}")
 
