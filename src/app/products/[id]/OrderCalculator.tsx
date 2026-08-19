@@ -173,7 +173,7 @@ export default function OrderCalculator({ product }: { product: Product }) {
         {/* Weight */}
         <div className="flex flex-col gap-2">
           <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f", fontFamily: "var(--font-brand), sans-serif" }}>
-            Weight ({weightUnit})
+            Est. Weight ({weightUnit})
           </span>
           <div
             className="h-10 flex items-center justify-center border text-sm font-bold"

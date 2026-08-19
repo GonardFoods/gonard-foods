@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublicProducts } from "@/lib/products-store";
-import { CATEGORY_LABELS, getProductPhotos, type Category } from "@/data/products";
+import { getProductPriceData } from "@/lib/prices";
+import { CATEGORY_LABELS, getProductPhotos, getWeightUnit, type Category } from "@/data/products";
 import OrderCalculator from "./OrderCalculator";
 import PhotoSlideshow from "./PhotoSlideshow";
 
@@ -49,6 +50,10 @@ export default async function ProductPage({
 
   const accentColor = CATEGORY_COLORS[product.category];
   const productPhotos = getProductPhotos(product);
+
+  const priceData = await getProductPriceData(product.id);
+  const priceLabel = priceData.pricingType === "per_box" ? "Price/Box" : `Price/${getWeightUnit(product.unit)}`;
+  const priceValue = priceData.pricePerUnit != null ? `$${priceData.pricePerUnit.toFixed(2)}` : null;
 
   const parts: string[] = [product.description];
   if (product.halal) parts.push("This product is halal certified.");
@@ -160,6 +165,7 @@ export default async function ProductPage({
               {[
                 { label: "Unit", value: product.unit },
                 { label: "Subcategory", value: product.subcategory },
+                ...(priceValue ? [{ label: priceLabel, value: priceValue }] : []),
                 ...(product.supplier ? [{ label: "Supplier", value: product.supplier }] : []),
               ].map(({ label, value }) => (
                 <div key={label} className="flex flex-col gap-0.5">
