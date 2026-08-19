@@ -64,6 +64,29 @@ const cards = [
     ),
   },
   {
+    title: "Drivers",
+    description: "Manage the driver roster and assign delivery orders for signature collection.",
+    href: "/admin/drivers",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+        <circle cx="12" cy="8" r="1.4" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+  },
+  {
+    title: "Signatures",
+    description: "Look up signed proof-of-delivery for any order — signature, invoice, and timestamp.",
+    href: "/admin/signatures",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 17c3-4 5 2 8-2s5 2 8-2" />
+        <path d="M4 21h16" />
+      </svg>
+    ),
+  },
+  {
     title: "Inventory",
     description: "Live stock levels per product — in house, on the way, reserved, and available.",
     href: "/admin/inventory",
