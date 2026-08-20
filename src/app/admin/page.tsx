@@ -87,6 +87,18 @@ const cards = [
     ),
   },
   {
+    title: "Stripe",
+    description: "Check whether online payments are connected and where payouts go — mode, status, and bank account.",
+    href: "/admin/stripe",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
+        <line x1="6" y1="15" x2="10" y2="15" />
+      </svg>
+    ),
+  },
+  {
     title: "Inventory",
     description: "Live stock levels per product — in house, on the way, reserved, and available.",
     href: "/admin/inventory",
