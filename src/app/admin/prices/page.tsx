@@ -1,15 +1,22 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { products, CATEGORY_LABELS, getWeightUnit } from "@/data/products";
+import { CATEGORY_LABELS, type Category } from "@/data/products";
 import type { PriceData } from "@/lib/prices";
+
+interface ProductListItem {
+  id: string;
+  name: string;
+  itemNo: string;
+  category: Category;
+  weightUnit: "KG" | "LB";
+}
 
 interface Row {
   id: string;
   itemNo: string;
   name: string;
   category: string;
-  unit: string;
   weightUnit: "KG" | "LB";
   pricePerUnit: number | null;
   caseWeight: number | null;
@@ -19,34 +26,32 @@ interface Row {
 }
 
 export default function AdminPricesPage() {
-  const [rows, setRows] = useState<Row[]>(() =>
-    products.map((p) => ({
-      id: p.id,
-      itemNo: p.itemNo,
-      name: p.name,
-      category: CATEGORY_LABELS[p.category],
-      unit: p.unit,
-      weightUnit: getWeightUnit(p.unit),
-      pricePerUnit: null,
-      caseWeight: null,
-      pricingType: "per_weight" as "per_weight" | "per_box" | "per_weight_direct",
-      saving: false,
-      saved: false,
-    }))
-  );
+  const [rows, setRows] = useState<Row[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/prices")
-      .then((r) => r.json())
-      .then((data: Record<string, PriceData>) => {
-        setRows((prev) =>
-          prev.map((row) => ({
-            ...row,
-            pricePerUnit: data[row.id]?.pricePerUnit ?? null,
-            caseWeight: data[row.id]?.caseWeight ?? null,
-            pricingType: data[row.id]?.pricingType ?? "per_weight",
+    // Product list comes from the live catalog (same source the Products admin
+    // page writes to) so anything added, renamed, or deleted there shows up
+    // here immediately — it used to be seeded from the static launch-day
+    // product list, so new products never appeared.
+    Promise.all([
+      fetch("/api/admin/products-list").then((r) => r.json()) as Promise<ProductListItem[]>,
+      fetch("/api/admin/prices").then((r) => r.json()) as Promise<Record<string, PriceData>>,
+    ])
+      .then(([productList, priceData]) => {
+        setRows(
+          productList.map((p) => ({
+            id: p.id,
+            itemNo: p.itemNo,
+            name: p.name,
+            category: CATEGORY_LABELS[p.category] ?? p.category,
+            weightUnit: p.weightUnit,
+            pricePerUnit: priceData[p.id]?.pricePerUnit ?? null,
+            caseWeight: priceData[p.id]?.caseWeight ?? null,
+            pricingType: priceData[p.id]?.pricingType ?? "per_weight",
+            saving: false,
+            saved: false,
           }))
         );
         setLoading(false);
