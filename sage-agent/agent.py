@@ -279,7 +279,15 @@ def create_sage_invoice(order: dict, customer_by_id: dict) -> bool:
                 else:  # per_box — flat price per box, qty is the box count
                     qty = item.get("qty", 1)
                     sal.SetQuantity(qty, i)
-                    sal.SetUnit("Case", i)
+                    # Web admin can order some per_box items by the packet/tube instead
+                    # of the whole box (e.g. item 280's tubes, prawn packets on 1031/1032)
+                    # — pricePerUnit/lineTotal already reflect that fraction of the box
+                    # price from finalization, so only the unit label needs adjusting here.
+                    item_no = item.get("itemNo", "")
+                    unit_label = "Tube" if (item.get("orderedUnit") == "PACKET" and item_no == "280") \
+                        else "Packet" if item.get("orderedUnit") == "PACKET" \
+                        else "Case"
+                    sal.SetUnit(unit_label, i)
                     sal.SetPrice(price, i)
                     sal.SetLineAmount(round(price * qty, 2), i)
 

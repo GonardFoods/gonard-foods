@@ -13,11 +13,19 @@ function getKV() {
 
 const KV_KEY = "orders_v1";
 
+// The unit the admin (or customer, via the public site) actually specified the
+// quantity in when the order was placed — distinct from a product's own
+// pricingType/weightUnit, which govern how it's normally sold. Only manual
+// admin orders can set this to PACKET ("packet/tube"); undefined means the
+// legacy default of CASE.
+export type OrderedUnit = "KG" | "LB" | "CASE" | "PACKET";
+
 export interface OrderItem {
   productId: string;
   itemNo: string;
   name: string;
-  qty: number; // cases
+  qty: number; // quantity in orderedUnit — cases by default
+  orderedUnit?: OrderedUnit;
   pricingType?: "per_weight" | "per_box" | "per_weight_direct";
   weightUnit?: "KG" | "LB";
   totalWeight?: number; // total weight in kg/lb for per_weight products

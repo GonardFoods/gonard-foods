@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { WebOrder, OrderStatus, OrderItem } from "@/lib/orders-store";
+import type { WebOrder, OrderStatus, OrderItem, OrderedUnit } from "@/lib/orders-store";
 import type { PublicCustomer } from "@/lib/customers-store";
 import type { Driver } from "@/lib/drivers-store";
 
@@ -17,7 +17,27 @@ interface ProductOption {
   pricePerUnit: number | null;
 }
 
-interface OrderItemRow { productId: string; qty: string; }
+interface OrderItemRow { productId: string; qty: string; unit: OrderedUnit; }
+
+const UNIT_OPTIONS: { value: OrderedUnit; label: string }[] = [
+  { value: "CASE", label: "Cases" },
+  { value: "KG", label: "KG" },
+  { value: "LB", label: "LBS" },
+  { value: "PACKET", label: "Packet/Tube" },
+];
+
+// The fraction of a product's listed box price that one packet/tube sells for.
+// Item 280: legs back attached, sold 5 tubes/box — one tube is 1/5 of a box.
+// Items 1031/1032: prawns, sold 10 packets/box — one packet is 1/10 of a box.
+const PACKET_FRACTIONS: Record<string, number> = {
+  "280": 0.2,
+  "1031": 0.1,
+  "1032": 0.1,
+};
+
+function packetWord(itemNo: string) {
+  return itemNo === "280" ? "tube" : "packet";
+}
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -81,12 +101,22 @@ function FinalizeModal({
   const [lines, setLines] = useState(() =>
     order.items.map((item) => {
       const p = productMap.get(item.productId);
+      // Packets/tubes are a fraction of the listed box price (e.g. item 280's
+      // tubes are 1/5 of the box) — pre-fill that fraction so admin isn't stuck
+      // manually working out the math, though it's still an editable default.
+      const packetFraction = item.orderedUnit === "PACKET" ? PACKET_FRACTIONS[item.itemNo] : undefined;
+      const defaultPrice = p?.pricePerUnit != null
+        ? packetFraction != null
+          ? String(Math.round(p.pricePerUnit * packetFraction * 100) / 100)
+          : String(p.pricePerUnit)
+        : "";
       return {
         item,
         product: p,
-        totalWeight: "",
+        totalWeight: item.orderedUnit === "KG" || item.orderedUnit === "LB" ? String(item.qty) : "",
         fireSale: false,
-        customPrice: p?.pricePerUnit != null ? String(p.pricePerUnit) : "",
+        customPrice: defaultPrice,
+        packetFraction,
       };
     })
   );
@@ -190,6 +220,11 @@ function FinalizeModal({
           {lines.map((line, lineIdx) => {
             const p = line.product;
             const isPerBox = p?.pricingType === "per_box";
+            const isPacket = line.packetFraction != null;
+            const unitWord = isPacket ? packetWord(line.item.itemNo) : "box";
+            const qtyLabel = line.item.orderedUnit === "KG" || line.item.orderedUnit === "LB"
+              ? `${line.item.qty} ${line.item.orderedUnit}`
+              : `${line.item.qty} ${line.item.qty === 1 ? unitWord : unitWord + "s"}`;
             const tot = lineTotal(line);
             return (
               <div key={line.item.productId} className="flex flex-col gap-3 pb-6" style={{ borderBottom: "1px solid #03033f08" }}>
@@ -199,7 +234,10 @@ function FinalizeModal({
                       {line.item.name}
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: "#03033f55" }}>
-                      {line.item.qty} {line.item.qty === 1 ? "box" : "boxes"}{isPerBox ? " · flat rate/box" : ` · charged by ${p?.weightUnit ?? "weight"}`}
+                      {qtyLabel}
+                      {isPacket
+                        ? ` · ${(line.packetFraction! * 100).toFixed(0)}% of box price per ${unitWord}`
+                        : isPerBox ? " · flat rate/box" : ` · charged by ${p?.weightUnit ?? "weight"}`}
                     </p>
                   </div>
                   {tot !== null && (
@@ -235,7 +273,7 @@ function FinalizeModal({
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>
-                      {line.fireSale ? "Fire-Sale Price" : "Price"} (${isPerBox ? "/box" : `/${p?.weightUnit ?? "kg"}`})
+                      {line.fireSale ? "Fire-Sale Price" : "Price"} (${isPerBox ? `/${unitWord}` : `/${p?.weightUnit ?? "kg"}`})
                     </label>
                     <div className="flex items-center gap-1">
                       <span className="text-xs" style={{ color: "#03033f55" }}>$</span>
@@ -397,7 +435,7 @@ function NewOrderForm({
   const [manualCompany, setManualCompany] = useState("");
   const [manualEmail, setManualEmail] = useState("");
   const [manualPhone, setManualPhone] = useState("");
-  const [itemRows, setItemRows] = useState<OrderItemRow[]>([{ productId: "", qty: "" }]);
+  const [itemRows, setItemRows] = useState<OrderItemRow[]>([{ productId: "", qty: "", unit: "CASE" }]);
   const [fulfillment, setFulfillment] = useState<"" | "pickup" | "delivery">("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
@@ -431,7 +469,7 @@ function NewOrderForm({
           customerCompany: selectedCustomer ? undefined : manualCompany || undefined,
           customerEmail: selectedCustomer ? undefined : manualEmail,
           customerPhone: selectedCustomer ? undefined : manualPhone || undefined,
-          items: itemRows.map((r) => ({ productId: r.productId, qty: Number(r.qty) })),
+          items: itemRows.map((r) => ({ productId: r.productId, qty: Number(r.qty), unit: r.unit })),
           fulfillment,
           address: fulfillment === "delivery" ? address : undefined,
           notes: notes || undefined,
@@ -477,22 +515,37 @@ function NewOrderForm({
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr style={{ borderBottom: "1px solid #03033f14" }}>
-                {["Product", "Cases", ""].map((h) => (
+                {["Product", "Quantity", "Unit", ""].map((h) => (
                   <th key={h} className="pb-2 pr-4 text-left text-xs font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {itemRows.map((row, i) => (
+              {itemRows.map((row, i) => {
+                const product = products.find((p) => p.id === row.productId);
+                const fraction = product && row.unit === "PACKET" ? PACKET_FRACTIONS[product.itemNo] : undefined;
+                return (
                 <tr key={i} style={{ borderBottom: "1px solid #03033f08" }}>
                   <td className="py-2 pr-4">
                     <select required value={row.productId} onChange={(e) => updateRow(i, { productId: e.target.value })} className="px-2 py-1.5 text-xs w-64" style={inputStyle}>
                       <option value="">Select product…</option>
                       {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
+                    {row.unit === "PACKET" && product && (
+                      <p className="text-xs mt-1" style={{ color: fraction != null ? "#03033f66" : "#dc2626" }}>
+                        {fraction != null
+                          ? `Priced at ${fraction * 100}% of the box price per ${packetWord(product.itemNo)}`
+                          : "No packet/tube price rule for this product — price will need to be set manually at invoicing."}
+                      </p>
+                    )}
                   </td>
                   <td className="py-2 pr-4">
-                    <input type="number" min="1" step="1" required value={row.qty} onChange={(e) => updateRow(i, { qty: e.target.value })} className="px-2 py-1.5 text-xs w-20" style={inputStyle} placeholder="0" />
+                    <input type="number" min="0.01" step="0.01" required value={row.qty} onChange={(e) => updateRow(i, { qty: e.target.value })} className="px-2 py-1.5 text-xs w-24" style={inputStyle} placeholder="0" />
+                  </td>
+                  <td className="py-2 pr-4">
+                    <select value={row.unit} onChange={(e) => updateRow(i, { unit: e.target.value as OrderedUnit })} className="px-2 py-1.5 text-xs" style={inputStyle}>
+                      {UNIT_OPTIONS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                    </select>
                   </td>
                   <td className="py-2">
                     {itemRows.length > 1 && (
@@ -500,11 +553,12 @@ function NewOrderForm({
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
-        <button type="button" onClick={() => setItemRows((prev) => [...prev, { productId: "", qty: "" }])} className="self-start text-xs font-bold tracking-widest uppercase hover:opacity-60 transition-opacity" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>
+        <button type="button" onClick={() => setItemRows((prev) => [...prev, { productId: "", qty: "", unit: "CASE" }])} className="self-start text-xs font-bold tracking-widest uppercase hover:opacity-60 transition-opacity" style={{ color: "#03033f88", fontFamily: "var(--font-brand), sans-serif" }}>
           + Add Product
         </button>
       </div>
@@ -750,13 +804,21 @@ export default function CustomerOrders() {
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: "#03033f88" }}>
                         {(() => {
+                          const lineCount = `${order.items.length} line${order.items.length !== 1 ? "s" : ""}`;
+                          const orderedUnits = new Set(order.items.map((i) => i.orderedUnit ?? "CASE"));
+                          if (orderedUnits.size > 1) return `${lineCount} · mixed units`;
+
                           const total = order.items.reduce((s, i) => s + i.qty, 0);
+                          const singleUnit = [...orderedUnits][0];
+                          if (singleUnit === "PACKET") return `${lineCount} · ${total} packet${total === 1 ? "" : "s"}/tube${total === 1 ? "" : "s"}`;
+                          if (singleUnit === "KG" || singleUnit === "LB") return `${lineCount} · ${total} ${singleUnit}`;
+
                           const allWeightDirect = order.items.every(i => productMap.get(i.productId)?.pricingType === "per_weight_direct");
                           const anyWeightDirect = order.items.some(i => productMap.get(i.productId)?.pricingType === "per_weight_direct");
                           const unit = allWeightDirect
                             ? (productMap.get(order.items[0]?.productId ?? "")?.weightUnit ?? "LB")
                             : anyWeightDirect ? "items" : "cases";
-                          return `${order.items.length} line${order.items.length !== 1 ? "s" : ""} · ${total} ${unit}`;
+                          return `${lineCount} · ${total} ${unit}`;
                         })()}
                       </td>
                       <td className="px-4 py-3 text-xs font-bold" style={{ color: "#03033f" }}>
@@ -863,7 +925,7 @@ export default function CustomerOrders() {
                             <table className="text-xs border-collapse" style={{ minWidth: 600 }}>
                               <thead>
                                 <tr style={{ borderBottom: "1px solid #03033f14" }}>
-                                  {["Item No", "Product", "Cases", "Weights", "Price", "Line Total"].map((h) => (
+                                  {["Item No", "Product", "Qty", "Weights", "Price", "Line Total"].map((h) => (
                                     <th key={h} className="py-1 pr-6 text-left font-bold tracking-widest uppercase" style={{ color: "#03033f66", fontFamily: "var(--font-brand), sans-serif" }}>{h}</th>
                                   ))}
                                 </tr>
@@ -875,8 +937,15 @@ export default function CustomerOrders() {
                                   const isFinalized = item.lineTotal != null;
                                   const weightUnit = item.weightUnit ?? product?.weightUnit ?? "LB";
 
+                                  const isPacket = item.orderedUnit === "PACKET";
+                                  const orderedUnitSuffix = item.orderedUnit === "KG" || item.orderedUnit === "LB"
+                                    ? ` ${item.orderedUnit}`
+                                    : isPacket
+                                    ? ` ${item.qty === 1 ? packetWord(item.itemNo) : packetWord(item.itemNo) + "s"}`
+                                    : "";
+
                                   // Pre-finalization weight-direct: qty stored in cart IS the weight, not cases
-                                  const casesDisplay = isWeightDirect && !isFinalized ? "—" : String(item.qty);
+                                  const casesDisplay = isWeightDirect && !isFinalized ? "—" : `${item.qty}${orderedUnitSuffix}`;
 
                                   const weightsDisplay = item.totalWeight != null
                                     ? `${item.totalWeight} ${weightUnit}`
@@ -886,7 +955,7 @@ export default function CustomerOrders() {
 
                                   const effectivePrice = isFinalized ? item.pricePerUnit : isWeightDirect ? product?.pricePerUnit : null;
                                   const priceUnit = isFinalized
-                                    ? (item.pricingType === "per_box" ? "box" : weightUnit.toLowerCase())
+                                    ? (item.pricingType === "per_box" ? (isPacket ? packetWord(item.itemNo) : "box") : weightUnit.toLowerCase())
                                     : isWeightDirect
                                     ? (product?.weightUnit ?? "LB").toLowerCase()
                                     : weightUnit.toLowerCase();

@@ -1,7 +1,9 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions, type AdminSession } from "@/lib/session";
-import { getOrders, saveOrder, type WebOrder, type OrderItem } from "@/lib/orders-store";
+import { getOrders, saveOrder, type WebOrder, type OrderItem, type OrderedUnit } from "@/lib/orders-store";
+
+const VALID_UNITS: OrderedUnit[] = ["KG", "LB", "CASE", "PACKET"];
 import { getCustomerById } from "@/lib/customers-store";
 import { getAllProducts } from "@/lib/products-store";
 
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
     customerCompany?: string;
     customerEmail?: string;
     customerPhone?: string;
-    items?: { productId: string; qty: number }[];
+    items?: { productId: string; qty: number; unit?: string }[];
     fulfillment?: string;
     address?: string;
     notes?: string;
@@ -70,7 +72,8 @@ export async function POST(req: Request) {
     const product = productMap.get(raw.productId);
     if (!product) return Response.json({ error: `Unknown product: ${raw.productId}` }, { status: 400 });
     if (!raw.qty || raw.qty <= 0) return Response.json({ error: "Quantity must be > 0." }, { status: 400 });
-    orderItems.push({ productId: product.id, itemNo: product.itemNo, name: product.name, qty: raw.qty });
+    const unit = raw.unit && VALID_UNITS.includes(raw.unit as OrderedUnit) ? (raw.unit as OrderedUnit) : "CASE";
+    orderItems.push({ productId: product.id, itemNo: product.itemNo, name: product.name, qty: raw.qty, orderedUnit: unit });
   }
 
   const order: WebOrder = {
