@@ -110,6 +110,26 @@ export default function AdminCustomers() {
     }
   }
 
+  // ── Remove account (reject a pending signup, or delete an accepted one) ────────
+
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  async function removeCustomer(id: string, label: string, confirmMsg: string) {
+    if (!window.confirm(confirmMsg)) return;
+    setRemoving(id);
+    try {
+      const res = await fetch(`/api/customers/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setCustomers((prev) => prev.filter((c) => c.id !== id));
+      } else {
+        const d = await res.json();
+        window.alert(d.error ?? `Failed to remove ${label}.`);
+      }
+    } finally {
+      setRemoving(null);
+    }
+  }
+
   // ── Sage list import ─────────────────────────────────────────────────────────
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -358,26 +378,50 @@ export default function AdminCustomers() {
                             <p className="text-xs" style={{ color: "#991b1b" }}>{sageError[c.id]}</p>
                           )}
 
-                          <button
-                            onClick={() => confirmSageSetup(c.id, c)}
-                            disabled={isConfirming}
-                            style={{
-                              padding: "8px 16px",
-                              backgroundColor: "#03033f",
-                              color: "#fff",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "10px",
-                              fontWeight: "bold",
-                              letterSpacing: "0.15em",
-                              textTransform: "uppercase",
-                              fontFamily: "var(--font-brand), sans-serif",
-                              opacity: isConfirming ? 0.5 : 1,
-                              alignSelf: "flex-start",
-                            }}
-                          >
-                            {isConfirming ? "Saving…" : "Confirm"}
-                          </button>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => confirmSageSetup(c.id, c)}
+                              disabled={isConfirming}
+                              style={{
+                                padding: "8px 16px",
+                                backgroundColor: "#03033f",
+                                color: "#fff",
+                                border: "none",
+                                cursor: "pointer",
+                                fontSize: "10px",
+                                fontWeight: "bold",
+                                letterSpacing: "0.15em",
+                                textTransform: "uppercase",
+                                fontFamily: "var(--font-brand), sans-serif",
+                                opacity: isConfirming ? 0.5 : 1,
+                              }}
+                            >
+                              {isConfirming ? "Saving…" : "Confirm"}
+                            </button>
+                            <button
+                              onClick={() => removeCustomer(
+                                c.id,
+                                "signup",
+                                `Reject ${c.name}'s signup? Their account will be deleted and they'll need to sign up again if they want to order.`
+                              )}
+                              disabled={removing === c.id}
+                              style={{
+                                padding: "8px 16px",
+                                backgroundColor: "transparent",
+                                color: "#dc2626",
+                                border: "1px solid #dc262644",
+                                cursor: "pointer",
+                                fontSize: "10px",
+                                fontWeight: "bold",
+                                letterSpacing: "0.15em",
+                                textTransform: "uppercase",
+                                fontFamily: "var(--font-brand), sans-serif",
+                                opacity: removing === c.id ? 0.5 : 1,
+                              }}
+                            >
+                              {removing === c.id ? "…" : "Reject"}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -439,13 +483,30 @@ export default function AdminCustomers() {
                           </td>
                           <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: "#03033f55" }}>{fmt(c.createdAt)}</td>
                           <td className="px-4 py-3">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setExpanded(c.id); startEdit(c); }}
-                              className="text-xs font-bold tracking-widest uppercase hover:opacity-60 transition-opacity"
-                              style={{ color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}
-                            >
-                              Edit
-                            </button>
+                            <div className="flex gap-3 whitespace-nowrap">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setExpanded(c.id); startEdit(c); }}
+                                className="text-xs font-bold tracking-widest uppercase hover:opacity-60 transition-opacity"
+                                style={{ color: "#03033f99", fontFamily: "var(--font-brand), sans-serif" }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeCustomer(
+                                    c.id,
+                                    "customer",
+                                    `Delete ${c.name}'s account? This removes their login and profile — their past orders and payments stay on record for accounting, but they'll need to sign up again to order online.${c.balance > 0 ? `\n\n⚠ They currently show an outstanding balance of $${c.balance.toLocaleString("en-CA", { minimumFractionDigits: 2 })}.` : ""}`
+                                  );
+                                }}
+                                disabled={removing === c.id}
+                                className="text-xs font-bold tracking-widest uppercase hover:opacity-60 transition-opacity disabled:opacity-40"
+                                style={{ color: "#dc2626", fontFamily: "var(--font-brand), sans-serif" }}
+                              >
+                                {removing === c.id ? "…" : "Delete"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                         {isExpanded && (

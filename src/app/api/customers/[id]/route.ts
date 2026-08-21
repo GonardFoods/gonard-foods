@@ -1,7 +1,7 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions, type AdminSession } from "@/lib/session";
-import { updateCustomer, hashPassword } from "@/lib/customers-store";
+import { updateCustomer, deleteCustomer, hashPassword } from "@/lib/customers-store";
 
 async function isAdmin() {
   const session = await getIronSession<AdminSession>(await cookies(), sessionOptions);
@@ -33,4 +33,15 @@ export async function PUT(
   if (!updated) return Response.json({ error: "Customer not found." }, { status: 404 });
   const { passwordHash: _, ...pub } = updated;
   return Response.json(pub);
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!(await isAdmin())) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  const ok = await deleteCustomer(id);
+  if (!ok) return Response.json({ error: "Customer not found." }, { status: 404 });
+  return Response.json({ ok: true });
 }

@@ -68,6 +68,18 @@ export async function createCustomer(customer: Customer): Promise<void> {
   await kv.set(KV_KEY, [customer, ...list]);
 }
 
+// Removes the account (login/profile). Their past orders and payments keep
+// their own snapshot of name/email, so accounting history is unaffected.
+export async function deleteCustomer(id: string): Promise<boolean> {
+  const kv = getKV();
+  if (!kv) throw new Error("KV unavailable");
+  const list = await getCustomers();
+  const filtered = list.filter((c) => c.id !== id);
+  if (filtered.length === list.length) return false;
+  await kv.set(KV_KEY, filtered);
+  return true;
+}
+
 export async function updateCustomer(
   id: string,
   patch: Partial<Omit<Customer, "id" | "createdAt">>
